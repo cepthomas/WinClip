@@ -1,5 +1,5 @@
 ﻿
-namespace ClipboardEx
+namespace WinClip
 {
     partial class ClipDisplay
     {

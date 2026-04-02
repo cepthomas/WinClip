@@ -12,7 +12,7 @@ using Ephemera.NBagOfTricks;
 using Ephemera.NBagOfUis;
 
 
-namespace ClipboardEx
+namespace WinClip
 {
     /// <summary>
     /// One selectable clip item.

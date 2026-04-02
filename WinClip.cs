@@ -9,13 +9,13 @@ using System.Threading;
 using System.Windows.Forms;
 using Ephemera.NBagOfTricks;
 using Ephemera.NBagOfUis;
-using W32 = Ephemera.Win32.Internals;
-using WM = Ephemera.Win32.WindowManagement;
+//using static NLab.Win32;
+
 
 // TODO persist clip data.
 
 
-namespace ClipboardEx
+namespace WinClip
 {
     #region Types
     /// <summary>For internal management.</summary>
@@ -26,7 +26,7 @@ namespace ClipboardEx
     /// - Handles all interactions at the Clipboard.XXX() API level.
     /// - Hooks keyboard to intercept magic paste key.
     /// </summary>
-    public sealed partial class ClipboardEx : Form
+    public sealed partial class WinClip : Form
     {
         #region Types
         /// <summary>One handled clipboard API message.</summary>
@@ -144,11 +144,11 @@ namespace ClipboardEx
         /// <summary>
         /// Constructor.
         /// </summary>
-        public ClipboardEx()
+        public WinClip()
         {
             InitializeComponent();
 
-            string appDir = MiscUtils.GetAppDataDir("ClipboardEx", "Ephemera");
+            string appDir = MiscUtils.GetAppDataDir("WinClip", "Ephemera");
 
             Visible = _debug;
 
@@ -199,15 +199,15 @@ namespace ClipboardEx
             // HL messages of interest.
             _clipboardMessages = new()
             {
-                { W32.WM_DRAWCLIPBOARD, new("WM_DRAWCLIPBOARD", CbDraw, "Sent to the first window in the clipboard viewer chain when the content of the clipboard changes aka copy/cut.") },
-                { W32.WM_CHANGECBCHAIN, new("WM_CHANGECBCHAIN", CbChange, "Sent to the first window in the clipboard viewer chain when a window is being removed from the chain.") },
-                { W32.WM_CLIPBOARDUPDATE, new("WM_CLIPBOARDUPDATE", CbDefault, "Sent when the contents of the clipboard have changed.") },
-                { W32.WM_DESTROYCLIPBOARD, new("WM_DESTROYCLIPBOARD", CbDefault, "Sent to the clipboard owner when a call to the EmptyClipboard function empties the clipboard.") },
-                { W32.WM_ASKCBFORMATNAME, new("WM_ASKCBFORMATNAME", CbDefault, "Sent to the clipboard owner by a clipboard viewer window to request the name of a CF_OWNERDISPLAY clipboard format.") },
-                { W32.WM_CLEAR, new("WM_CLEAR", CbDefault, "Clear") },
-                { W32.WM_COPY, new("WM_COPY", CbDefault, "Copy") },
-                { W32.WM_CUT, new("WM_CUT", CbDefault, "Cut") },
-                { W32.WM_PASTE, new("WM_PASTE", CbDefault, "Paste") }
+                { Win32.WM_DRAWCLIPBOARD, new("WM_DRAWCLIPBOARD", CbDraw, "Sent to the first window in the clipboard viewer chain when the content of the clipboard changes aka copy/cut.") },
+                { Win32.WM_CHANGECBCHAIN, new("WM_CHANGECBCHAIN", CbChange, "Sent to the first window in the clipboard viewer chain when a window is being removed from the chain.") },
+                { Win32.WM_CLIPBOARDUPDATE, new("WM_CLIPBOARDUPDATE", CbDefault, "Sent when the contents of the clipboard have changed.") },
+                { Win32.WM_DESTROYCLIPBOARD, new("WM_DESTROYCLIPBOARD", CbDefault, "Sent to the clipboard owner when a call to the EmptyClipboard function empties the clipboard.") },
+                { Win32.WM_ASKCBFORMATNAME, new("WM_ASKCBFORMATNAME", CbDefault, "Sent to the clipboard owner by a clipboard viewer window to request the name of a CF_OWNERDISPLAY clipboard format.") },
+                { Win32.WM_CLEAR, new("WM_CLEAR", CbDefault, "Clear") },
+                { Win32.WM_COPY, new("WM_COPY", CbDefault, "Copy") },
+                { Win32.WM_CUT, new("WM_CUT", CbDefault, "Cut") },
+                { Win32.WM_PASTE, new("WM_PASTE", CbDefault, "Paste") }
             };
 
             // Init LL keyboard hook.
@@ -372,8 +372,8 @@ namespace ClipboardEx
                     if (dobj is not null)
                     {
                         // Info about the source window.
-                        IntPtr hwnd = WM.ForegroundWindow;
-                        var info = WM.GetAppWindowInfo(hwnd);
+                        IntPtr hwnd = Win32.ForegroundWindow;
+                        var info = Win32.GetAppWindowInfo(hwnd);
                         var procName = Process.GetProcessById(info.Pid).ProcessName;
                         var appPath = Process.GetProcessById(info.Pid).MainModule!.FileName;
                         var appName = Path.GetFileName(appPath);
@@ -459,7 +459,7 @@ namespace ClipboardEx
             }
 
             // Pass along to the next in the chain.
-            var ret = W32.SendMessage(_nextCb, m.Msg, m.WParam, m.LParam);
+            var ret = Win32.SendMessage(_nextCb, m.Msg, m.WParam, m.LParam);
 
             return (uint)ret;
         }
@@ -481,7 +481,7 @@ namespace ClipboardEx
             else
             {
                 // Just pass along to the next in the chain.
-                ret = W32.SendMessage(_nextCb, m.Msg, m.WParam, m.LParam);
+                ret = Win32.SendMessage(_nextCb, m.Msg, m.WParam, m.LParam);
             }
 
             return (uint)ret;
@@ -562,10 +562,10 @@ namespace ClipboardEx
             //Tell($"FileName:{p.MainModule!.FileName} pid:{ lpdwProcessId} tid:{tid}");
 
             // This does work. Virtual keycodes from https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
-            W32.InjectKey(W32.VK_CONTROL);
-            W32.InjectKey('v');
-            W32.InjectKey(W32.VK_CONTROL, up:true);
-            W32.InjectKey('v', up: true);
+            Win32.InjectKey(Win32.VK_CONTROL);
+            Win32.InjectKey('v');
+            Win32.InjectKey(Win32.VK_CONTROL, up:true);
+            Win32.InjectKey('v', up: true);
 
             // Note that this doesn't work, which makes sense.
             //SendMessage(hwnd, 0x0302, IntPtr.Zero, IntPtr.Zero); // WM_PASTE
@@ -589,7 +589,7 @@ namespace ClipboardEx
                 if (code >= 0)
                 {
                     // Update statuses.
-                    bool pressed = wParam == W32.WM_KEYDOWN || wParam == W32.WM_SYSKEYDOWN;
+                    bool pressed = wParam == Win32.WM_KEYDOWN || wParam == Win32.WM_SYSKEYDOWN;
                     //bool up = wParam == WM_KEYUP || wParam == WM_SYSKEYUP;
 
                     if (key == Keys.LWin || key == Keys.RWin)

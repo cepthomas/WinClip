@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace ClipboardEx
+namespace WinClip
 {
     /// <summary>Framework for running as a tray app.</summary>
     static class Program
@@ -16,7 +16,7 @@ namespace ClipboardEx
             Application.SetHighDpiMode(HighDpiMode.SystemAware);
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new ClipboardEx());
+            Application.Run(new WinClip());
         }
     }
 }

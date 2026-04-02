@@ -1,7 +1,7 @@
 
-namespace ClipboardEx
+namespace WinClip
 {
-    partial class ClipboardEx
+    partial class WinClip
     {
         /// <summary>
         /// Required designer variable.
