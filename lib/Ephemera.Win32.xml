@@ -1,0 +1,205 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>Ephemera.Win32</name>
+    </assembly>
+    <members>
+        <member name="M:Ephemera.Win32.Internals.SendMessage(System.IntPtr,System.Int32,System.IntPtr,System.IntPtr)">
+            <summary>
+            Generic message sender.
+            </summary>
+            <param name="handle"></param>
+            <param name="msg"></param>
+            <param name="wParam"></param>
+            <param name="lParam"></param>
+            <returns></returns>
+        </member>
+        <member name="M:Ephemera.Win32.Internals.InjectKey(System.Byte,System.Boolean)">
+            <summary> 
+            Inject a keystroke.
+            </summary>
+            <param name="key"></param>
+            <param name="up"></param>
+        </member>
+        <member name="M:Ephemera.Win32.Internals.InjectKey(System.Char,System.Boolean)">
+            <summary> 
+            Inject a character.
+            </summary>
+            <param name="key"></param>
+            <param name="up"></param>
+        </member>
+        <member name="M:Ephemera.Win32.Internals.RegisterShellHook(System.IntPtr)">
+            <summary>
+            Register shell hook.
+            </summary>
+            <param name="handle"></param>
+            <returns></returns>
+        </member>
+        <member name="M:Ephemera.Win32.Internals.DeregisterShellHook(System.IntPtr)">
+            <summary>
+            Deregister shell hook.
+            </summary>
+            <param name="handle"></param>
+        </member>
+        <member name="M:Ephemera.Win32.Internals.RegisterHotKey(System.IntPtr,System.Int32,System.Int32)">
+            <summary>
+            Rudimentary management of hotkeys. Only supports one (global) handle.
+            </summary>
+            <param name="handle"></param>
+            <param name="key"></param>
+            <param name="mod"></param>
+            <returns></returns>
+        </member>
+        <member name="M:Ephemera.Win32.Internals.UnregisterHotKeys(System.IntPtr)">
+            <summary>
+            Rudimentary management of hotkeys. Only supports one (global) handle.
+            </summary>
+            <param name="handle"></param>
+        </member>
+        <member name="M:Ephemera.Win32.Internals.MessageBox(System.String,System.String,System.Boolean,System.Boolean)">
+            <summary>
+            Generic limited modal message box. Just enough for a typical console or hidden application.
+            </summary>
+            <param name="message">Body.</param>
+            <param name="caption">Caption.</param>
+            <param name="error">Use error icon otherwise info.</param>
+            <param name="ask">Use OK/cancel buttons.</param>
+            <returns>True if OK </returns>
+        </member>
+        <member name="M:Ephemera.Win32.Internals.DisableDpiScaling">
+            <summary>
+            Thunk.
+            </summary>
+        </member>
+        <member name="M:Ephemera.Win32.Internals.ShellExecute(System.String,System.String,System.Boolean)">
+            <summary>
+            Streamlined version of the real function.
+            </summary>
+            <param name="verb">Standard verb</param>
+            <param name="path">Where</param>
+            <param name="hide">Hide the new window.</param>
+            <returns>Standard error code</returns>
+        </member>
+        <member name="T:Ephemera.Win32.Internals.ShellExecuteInfo">
+            <summary>For ShellExecuteEx().</summary>
+            https://learn.microsoft.com/en-us/windows/win32/api/shellapi/ns-shellapi-shellexecuteinfoa
+            ? Be careful with the string structure fields: UnmanagedType.LPTStr will be marshalled as unicode string so only
+            the first character will be recognized by the function. Use UnmanagedType.LPStr instead.
+        </member>
+        <member name="M:Ephemera.Win32.Internals.ShellExecute(System.IntPtr,System.String,System.String,System.String,System.String,System.Int32)">
+            <summary>Performs an operation on a specified file.
+            Args: https://learn.microsoft.com/en-us/windows/win32/api/shellapi/ns-shellapi-shellexecuteinfoa.
+            </summary>
+        </member>
+        <member name="M:Ephemera.Win32.Internals.ShellExecute(System.IntPtr,System.String,System.String,System.IntPtr,System.IntPtr,System.Int32)">
+            <summary>Overload of above for nullable args.</summary>
+        </member>
+        <member name="M:Ephemera.Win32.Internals.ShellExecuteEx(Ephemera.Win32.Internals.ShellExecuteInfo@)">
+            <summary>Finer control version of above.</summary>
+        </member>
+        <member name="M:Ephemera.Win32.Internals.MessageBox(System.IntPtr,System.String,System.String,System.UInt32)">
+            <summary>Rudimentary UI notification for use in a console application.</summary>
+        </member>
+        <member name="T:Ephemera.Win32.WindowManagement.AppWindowInfo">
+            <summary>Useful info about a window.</summary>
+        </member>
+        <member name="P:Ephemera.Win32.WindowManagement.AppWindowInfo.Handle">
+            <summary>Native window handle.</summary>
+        </member>
+        <member name="P:Ephemera.Win32.WindowManagement.AppWindowInfo.Pid">
+            <summary>Owner process.</summary>
+        </member>
+        <member name="P:Ephemera.Win32.WindowManagement.AppWindowInfo.ThreadId">
+            <summary>Running on this thread.</summary>
+        </member>
+        <member name="P:Ephemera.Win32.WindowManagement.AppWindowInfo.Parent">
+            <summary>Who's your daddy?</summary>
+        </member>
+        <member name="P:Ephemera.Win32.WindowManagement.AppWindowInfo.DisplayRectangle">
+            <summary>The coordinates of the window.</summary>
+        </member>
+        <member name="P:Ephemera.Win32.WindowManagement.AppWindowInfo.ClientRectangle">
+            <summary>The coordinates of the client area.</summary>
+        </member>
+        <member name="P:Ephemera.Win32.WindowManagement.AppWindowInfo.Title">
+            <summary>Window Text.</summary>
+        </member>
+        <member name="P:Ephemera.Win32.WindowManagement.AppWindowInfo.IsVisible">
+            <summary>This is not trustworthy as it is true for some unseen windows.</summary>
+        </member>
+        <member name="M:Ephemera.Win32.WindowManagement.AppWindowInfo.ToString">
+            <summary>For humans.</summary>
+        </member>
+        <member name="P:Ephemera.Win32.WindowManagement.ForegroundWindow">
+            <summary>
+            Get or set the fg.
+            </summary>
+        </member>
+        <member name="P:Ephemera.Win32.WindowManagement.ShellWindow">
+            <summary>
+            Get the shell window.
+            </summary>
+        </member>
+        <member name="M:Ephemera.Win32.WindowManagement.GetAppWindows(System.String,System.Boolean)">
+            <summary>
+            Get all pertinent/visible windows for the application. Ignores non-visible or non-titled (internal).
+            Note that new explorers may be in the same process or separate ones. Depends on explorer user options.
+            </summary>
+            <param name="appName">The application name to filter on.</param>
+            <param name="includeAnonymous">Include those without titles or base "Program Manager".</param>
+            <returns>List of window infos.</returns>
+        </member>
+        <member name="M:Ephemera.Win32.WindowManagement.GetAppMainWindows(System.String)">
+            <summary>
+            Get main window(s) for the application. Could be multiple if more than one process.
+            </summary>
+            <param name="appName">The application name to filter on.</param>
+            <returns>List of window handles.</returns>
+        </member>
+        <member name="M:Ephemera.Win32.WindowManagement.GetAppWindowInfo(System.IntPtr)">
+            <summary>
+            Get everything you need to know about a window.
+            </summary>
+            <param name="handle"></param>
+            <returns>The info object.</returns>
+        </member>
+        <member name="M:Ephemera.Win32.WindowManagement.ShowWindow(System.IntPtr)">
+            <summary>
+            Show the window.
+            </summary>
+            <param name="handle"></param>
+            <returns></returns>        
+        </member>
+        <member name="M:Ephemera.Win32.WindowManagement.MoveWindow(System.IntPtr,System.Drawing.Point)">
+            <summary>
+            Move a window.
+            </summary>
+            <param name="handle"></param>
+            <param name="loc">Where to.</param>
+            <returns></returns>
+        </member>
+        <member name="M:Ephemera.Win32.WindowManagement.ResizeWindow(System.IntPtr,System.Drawing.Size)">
+            <summary>
+            Resize a window.
+            </summary>
+            <param name="handle"></param>
+            <param name="size">How big is it.</param>
+            <returns></returns>
+        </member>
+        <member name="T:Ephemera.Win32.WindowManagement.WindowInfo">
+            <summary>Contains information about a window.</summary>
+        </member>
+        <member name="M:Ephemera.Win32.WindowManagement.GetShellWindow">
+            <summary>Retrieves a handle to the Shell's desktop window.</summary>
+        </member>
+        <member name="M:Ephemera.Win32.WindowManagement.GetWindowThreadProcessId(System.IntPtr,System.IntPtr@)">
+            <summary>Retrieves the thread and process ids that created the window.</summary>
+        </member>
+        <member name="M:Ephemera.Win32.WindowManagement.GetWindowText(System.IntPtr,System.Text.StringBuilder,System.Int32)">
+            <summary>Copies the text of the specified window's title bar (if it has one) into a buffer.</summary>
+            <param name="hwnd">handle to the window</param>
+            <param name="lpString">StringBuilder to receive the result</param>
+            <param name="cch">Max number of characters to copy to the buffer, including the null character. If the text exceeds this limit, it is truncated</param>
+        </member>
+    </members>
+</doc>

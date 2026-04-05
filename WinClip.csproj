@@ -40,6 +40,9 @@
         <Reference Include="Ephemera.NBagOfUis">
             <HintPath>lib\Ephemera.NBagOfUis.dll</HintPath>
         </Reference>
+        <Reference Include="Ephemera.Win32">
+          <HintPath>lib\Ephemera.Win32.dll</HintPath>
+        </Reference>
     </ItemGroup>
 
 </Project>
