@@ -19,8 +19,8 @@ namespace WinClip
     /// </summary>
     public partial class ClipDisplay_1 : UserControl
     {
-        /// <summary>For owner use.</summary>
-        public int Id { get; set; } = -1;
+        ///// <summary>For owner use.</summary>
+        //public int Id { get; set; } = -1;
 
         /// <summary>Used for unspecified states.</summary>
         readonly SolidBrush _defaultForeBrush = new(Color.Black);
@@ -36,10 +36,10 @@ namespace WinClip
         public ClipType Ctype { get; set; } = ClipType.Empty;
 
         /// <summary>For display.</summary>
-        public string Text { get; set; } = "";
+        public string? ShortText { get; set; } = null;
 
         /// <summary>For display.</summary>
-        public Bitmap? Bitmap { get; set; } = null;
+        public Image? Thumbnail { get; set; } = null;
 
         /// <summary>Who sourced it.</summary>
         public string OriginatingApp { get; set; } = "Unknown";
@@ -58,13 +58,10 @@ namespace WinClip
                 $"Ctype:[{Ctype}]",
                 $"Data:[{Data}]",
                 $"From App:[{OriginatingApp}]",
-                $"From Title:[{OriginatingTitle}]"
-                ];
+                $"From Title:[{OriginatingTitle}]" ];
 
             return string.Join(Environment.NewLine, ls);
         }
-
-
 
 
         // #region Events
@@ -114,43 +111,32 @@ namespace WinClip
         //     ClipRequest?.Invoke(this, new ClipEventArgs(ClipRequestType.Click));
         // }
 
+        /// <summary>
+        /// Draw me.
+        /// </summary>
+        /// <param name="pe"></param>
         protected override void OnPaint(PaintEventArgs pe)
         {
-            //// Setup.
-            //pe.Graphics.Clear(BackColor);
+            // Setup.
+            pe.Graphics.Clear(BackColor);
 
-            // for (int row = 0; row < _rows; row++)
-            // {
-            //     for (int col = 0; col < _cols; col++)
-            //     {
-            //         SolidBrush fb = _defaultForeBrush;
-            //         SolidBrush bb = _defaultBackBrush;
+            switch (Ctype)
+            {
+                case ClipType.PlainText:
+                case ClipType.RichText:
+                    SizeF stext = pe.Graphics.MeasureString(ShortText, Font);
+                    pe.Graphics.DrawString(ShortText, Font, _defaultForeBrush, ClientRectangle);
+                    break;
 
-            //         int ind = row * _cols + col;
+                case ClipType.Image:
+                    pe.Graphics.DrawImage(Thumbnail, 0, 0);
+                    break;
 
-            //         if(ind < _indicators.Count)
-            //         {
-            //             int state = _indicators[ind].State;
-            //             if (_stateTypes.ContainsKey(state))
-            //             {
-            //                 fb = _stateTypes[state].ForeBrush;
-            //                 bb = _stateTypes[state].BackBrush;
-            //             }
-
-            //             int x = col * _indWidth;
-            //             int y = row * _indHeight;
-            //             Rectangle r = new(x, y, _indWidth, _indHeight);
-            //             pe.Graphics.FillRectangle(bb, r);
-
-            //             // Text
-            //             string text = _indicators[ind].Text;
-            //             SizeF stext = pe.Graphics.MeasureString(text, Font);
-            //             pe.Graphics.DrawString(text, Font, fb, x + 5, y + (_indHeight - stext.Height) / 2);
-            //         }
-            //     }
-            // }
+                default:
+                    pe.Graphics.Clear(Color.SpringGreen);
+                    break;
+            }
         }
-
 
         /// <summary>
         /// Text specific setup.

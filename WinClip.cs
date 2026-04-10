@@ -18,7 +18,7 @@ namespace WinClip
 {
     #region Types
     /// <summary>For internal management.</summary>
-    public enum ClipType { Empty, PlainText, RichText, FileList, Image, Other };
+    public enum ClipType { Empty, PlainText, RichText, Image, Other };
     #endregion
 
     /// <summary>
@@ -29,7 +29,7 @@ namespace WinClip
     {
         #region Types
         /// <summary>One handled clipboard API message.</summary>
-        record MsgSpec(string Name, Func<Message, uint> Handler, string Description);
+        record MsgSpec(string Name, Func<Message, int> Handler, string Description);
 
         // /// <summary>One entry in the collection. // TODO persist clip data.</summary>
         // class Clip 
@@ -48,8 +48,8 @@ namespace WinClip
         /// <summary>Cosmetics.</summary>
         readonly Color _drawColor = Color.LimeGreen;
 
-        /// <summary></summary>
-        readonly bool _fitImage = true;
+        ///// <summary></summary>
+        //readonly bool _fitImage = true;
 
         /// <summary></summary>
         readonly Keys _keyTrigger = Keys.Z;
@@ -97,33 +97,29 @@ namespace WinClip
 
             Visible = _debug; //TODO doesn't work - like C:\Dev\Misc\NLab\TrayExForm
 
-            // Init clip displays.
-            int x = 5;
-            int y = 5;
-            for (int i = 0; i < MAX_CLIPS; i++)
-            {
-                ClipDisplay_1 cd = new() { Location = new Point(x, y), Id = i };
-                cd.Click += (s, e) => { };
-                cd.DoubleClick += (s, e) => { };
-                _clips.AddLast(cd);
-                Controls.Add(cd);
-                //x = cd.Right + 5;
-                y = cd.Bottom + 5;
+            //// Init clip displays.
+            //int x = 5;
+            //int y = 5;
+            //for (int i = 0; i < MAX_CLIPS; i++)
+            //{
+            //    ClipDisplay_1 cd = new() { Location = new Point(x, y), Id = i };
+            //    _clips.AddLast(cd);
+            //    Controls.Add(cd);
+            //    //x = cd.Right + 5;
+            //    y = cd.Bottom + 5;
+            //    //_displays.Add(cd);
+            //    //Controls.Add(cd);
+            //    //cd.ClipRequest += Cd_ClipRequest;
+            //    ////x = cd.Right + 5;
+            //    //y = cd.Bottom + 5;
+            //}
 
-
-                //_displays.Add(cd);
-                //Controls.Add(cd);
-                //cd.ClipRequest += Cd_ClipRequest;
-                ////x = cd.Right + 5;
-                //y = cd.Bottom + 5;
-            }
-
-            UpdateClipDisplays();
+//            UpdateClipDisplays();
 
             // Clean me up.
             var borderWidth = (Width - ClientSize.Width) / 2;
             //Width = x + borderWidth * 2;
-            Height = y + borderWidth * 2 + 55;
+            //Height = y + borderWidth * 2 + 55;
 
             if (!_debug)
             {
@@ -204,6 +200,43 @@ namespace WinClip
         }
         #endregion
 
+
+
+        /// <summary>
+        /// Draw me.
+        /// </summary>
+        /// <param name="pe"></param>
+        protected override void OnPaint(PaintEventArgs pe)
+        {
+
+
+
+            //// Setup.
+            //pe.Graphics.Clear(BackColor);
+
+            //switch (Ctype)
+            //{
+            //    case ClipType.PlainText:
+            //    case ClipType.RichText:
+            //        SizeF stext = pe.Graphics.MeasureString(ShortText, Font);
+            //        pe.Graphics.DrawString(ShortText, Font, _defaultForeBrush, ClientRectangle);
+            //        break;
+
+            //    case ClipType.Image:
+            //        pe.Graphics.DrawImage(Thumbnail, 0, 0);
+            //        break;
+
+            //    default:
+            //        pe.Graphics.Clear(Color.SpringGreen);
+            //        break;
+            //}
+        }
+
+
+
+
+
+
         #region Clip Management
         /// <summary>
         /// 
@@ -213,7 +246,9 @@ namespace WinClip
             // Remove tail(s).
             while (_clips.Count > MAX_CLIPS)
             {
-                _clips.RemoveLast();
+                var clip = _clips.Last();
+                Controls.Remove(clip);
+                _clips.Remove(clip);
             }
 
             // Fill UI with what we have.
@@ -237,7 +272,7 @@ namespace WinClip
 
                     case ClipType.PlainText:
                     case ClipType.RichText:
-                    case ClipType.FileList:
+                    //case ClipType.FileList:
                         clip.SetText(clip.Ctype, clip.Text);
                         break;
                 }
@@ -290,7 +325,7 @@ namespace WinClip
         /// <param name="m"></param>
         protected override void WndProc(ref Message m)
         {
-            uint ret = 0;
+            int ret = 0;
 
             if (_clipboardMessages.TryGetValue(m.Msg, out MsgSpec? value))
             {
@@ -316,10 +351,10 @@ namespace WinClip
         /// </summary>
         /// <param name="m"></param>
         /// <returns></returns>
-        uint CbDraw(Message m)
+        int CbDraw(Message m)
         {
             int retries = 5;
-            uint ret = 99;
+            int ret = 99;
 
             while (ret != 0 && retries > 0)
             {
@@ -365,6 +400,7 @@ namespace WinClip
                                 if (dt.Contains("Rich Text Format") || dt.Contains("RTF"))
                                 {
                                     ctype = ClipType.RichText;
+                                    //Text = Clipboard.GetText().Left(80);
                                     break;
                                 }
                             }
@@ -375,19 +411,24 @@ namespace WinClip
                                 Text = Clipboard.GetText().Left(80)
                             };
                         }
+                        else if (Clipboard.ContainsImage())
+                        {
+                            var bmp = Clipboard.GetImage() as Bitmap;
+                            int tnHeight = Height;
+                            int tnWidth = Width * Height / bmp.Width;
+                            bmp.Resize(tnWidth, tnHeight);
+
+                            clip = new()
+                            {
+                                Ctype = ClipType.Image,
+                                Thumbnail = bmp // Clipboard.GetImage() as Bitmap // TODO thumbnail
+                            };
+                        }
                         //else if (Clipboard.ContainsFileDropList())
                         //{
                         //    clip.Ctype = ClipType.FileList;
                         //    clip.Text = string.Join(Environment.NewLine, Clipboard.GetFileDropList());
                         //}
-                        else if (Clipboard.ContainsImage())
-                        {
-                            clip = new()
-                            {
-                                Ctype = ClipType.Image,
-                                Bitmap = Clipboard.GetImage() as Bitmap // TODO thumbnail
-                            };
-                        }
                         //else
                         //{
                         //    // Something else, don't try to show it.
@@ -398,13 +439,30 @@ namespace WinClip
                             clip.Data = Clipboard.GetDataObject();
                             clip.OriginatingApp = appName ?? "Unknown";
                             clip.OriginatingTitle = info.Title.ToString();
+                            clip.Click += (sender, e) => { ClipClick(sender as ClipDisplay_1, true); };
+                            clip.DoubleClick += (sender, e) => { ClipClick(sender as ClipDisplay_1, false); };
+
                             _clips.AddFirst(clip);
-                            UpdateClipDisplays();
+                            Controls.Add(clip);
+
+                            // Limit.
+                            // Remove tail(s).
+                            while (_clips.Count > MAX_CLIPS)
+                            {
+                                var clipx = _clips.Last();
+                                Controls.Remove(clipx);
+                                _clips.Remove(clipx);
+                            }
+
+
+                            Invalidate();
+
+//                            UpdateClipDisplays();
                         }
                         else
                         {
                             // Pass along to the next in the chain.
-                            ret = (uint)W32.SendMessage(_nextCb, m.Msg, m.WParam, m.LParam);
+                            ret = W32.SendMessage(_nextCb, m.Msg, m.WParam, m.LParam);
                         }
                         //ClipDisplay_1 clip = new()
                         //{
@@ -445,7 +503,7 @@ namespace WinClip
         /// </summary>
         /// <param name="m"></param>
         /// <returns></returns>
-        uint CbChange(Message m)
+        int CbChange(Message m)
         {
             var ret = 0;
 
@@ -460,7 +518,7 @@ namespace WinClip
                 ret = W32.SendMessage(_nextCb, m.Msg, m.WParam, m.LParam);
             }
 
-            return (uint)ret;
+            return ret;
         }
 
         /// <summary>
@@ -468,60 +526,46 @@ namespace WinClip
         /// </summary>
         /// <param name="m"></param>
         /// <returns></returns>
-        uint CbDefault(Message m)
+        int CbDefault(Message m)
         {
-            uint ret = 0;
+            int ret = 0;
             base.WndProc(ref m);
             return ret;
         }
         #endregion
 
-        #region New Paste Functions
+        #region Paste Functions
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        void Cd_ClipRequest(ClipDisplay_1 clip, bool singleClick) //   object? sender, ClipDisplay.ClipEventArgs e)
+        /// <param name="clip"></param>
+        /// <param name="singleClick"></param>
+        void ClipClick(ClipDisplay_1? clip, bool singleClick)
         {
-            //if (sender is not null)
-          //  {
-                // Paste this selection and move it to the front.
-
-             //   var cd = (ClipDisplay)sender;
-
             if (singleClick)
             {
                 Tell("!!! Got a single click");
-                int i = clip.Id;
-                if (i >= 0 && i < _clips.Count)
+                if (clip is not null && clip.Data is not null)
                 {
-                    //Clip clip = _clips.ElementAt(i);
-                    if (clip.Data is not null)
-                    {
-                        Clipboard.SetDataObject(clip.Data);
-                        DoPaste();
-                        // Push to head of class.
-                        _clips.Remove(clip);
-                        _clips.AddFirst(clip);
-                    }
-                    else
-                    {
-                        _clips.Remove(clip);
-                    }
-                    UpdateClipDisplays();
-                    Visible = _debug;
-
+                    Clipboard.SetDataObject(clip.Data);
+                    DoPaste();
+                    // Push to head of class.
+                    _clips.Remove(clip);
+                    _clips.AddFirst(clip);
                 }
-                else // double
+                else
                 {
-                    Tell("!!! Got a double click TODO");
-
-
+                    Controls.Remove(clip);
+                    _clips.Remove(clip);
                 }
 
-                //  Also could do left, right, delete, etc.
+                Invalidate();
             }
+            else // double
+            {
+                Tell("!!! Got a double click TODO");
+            }
+            //  TODO Also could do left, right, delete, etc.
         }
 
         /// <summary>
@@ -609,7 +653,6 @@ namespace WinClip
             {
                 Tell(clip.ToString());
             }
-
         }
 
         /// <summary>
