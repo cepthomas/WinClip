@@ -8,9 +8,7 @@ namespace WinClip
         /// </summary>
         private System.ComponentModel.IContainer components = null;
 
-
         #region Windows Form Designer generated code
-
         /// <summary>
         /// Required method for Designer support - do not modify
         /// the contents of this method with the code editor.
@@ -112,10 +110,8 @@ namespace WinClip
             this.Name = "ClipboardEx";
             this.Text = "Hoo Haa";
             this.ResumeLayout(false);
-
         }
         #endregion
-
         
         private Ephemera.NBagOfUis.TextViewer tvInfo;
         private System.Windows.Forms.RichTextBox rtbText;

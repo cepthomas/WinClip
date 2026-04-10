@@ -11,10 +11,8 @@ using Ephemera.NBagOfTricks;
 using Ephemera.NBagOfUis;
 using W32 = Ephemera.Win32.Internals;
 using WM = Ephemera.Win32.WindowManagement;
-
-
-// TODO persist clip data.
-
+using CB = WinClip.Native;
+using System.Text;
 
 namespace WinClip
 {
@@ -27,23 +25,23 @@ namespace WinClip
     /// - Handles all interactions at the Clipboard.XXX() API level.
     /// - Hooks keyboard to intercept magic paste key.
     /// </summary>
-    public sealed partial class WinClip : Form
+    public partial class WinClip : Form
     {
         #region Types
         /// <summary>One handled clipboard API message.</summary>
         record MsgSpec(string Name, Func<Message, uint> Handler, string Description);
 
-        /// <summary>One entry in the collection.</summary>
-        class Clip
-        {
-            public object? Data { get; set; } = null;
-            public ClipType Ctype { get; set; } = ClipType.Empty;
-            public string Text { get; set; } = "";
-            public Bitmap? Bitmap { get; set; } = null;
-            public string OrigApp { get; set; } = "Unknown";
-            public string OrigTitle { get; set; } = "Unknown";
-            public override string ToString() => $"Ctype:{Ctype}";
-        }
+        // /// <summary>One entry in the collection. // TODO persist clip data.</summary>
+        // class Clip 
+        // {
+        //     public object? Data { get; set; } = null;
+        //     public ClipType Ctype { get; set; } = ClipType.Empty;
+        //     public string Text { get; set; } = "";
+        //     public Bitmap? Bitmap { get; set; } = null;
+        //     public string OrigApp { get; set; } = "Unknown";
+        //     public string OrigTitle { get; set; } = "Unknown";
+        //     public override string ToString() => $"Ctype:{Ctype}";
+        // }
         #endregion
 
         #region Fields
@@ -57,7 +55,7 @@ namespace WinClip
         readonly Keys _keyTrigger = Keys.Z;
 
         /// <summary></summary>
-        readonly bool _debug = false;
+        readonly bool _debug = true;
 
         /// <summary>Next in line for clipboard  notification.</summary>
         IntPtr _nextCb = IntPtr.Zero;
@@ -69,10 +67,11 @@ namespace WinClip
         readonly Dictionary<int, MsgSpec> _clipboardMessages = [];
 
         /// <summary>All clips in the collection.</summary>
-        readonly LinkedList<Clip> _clips = new();
+        readonly LinkedList<ClipDisplay_1> _clips = new();
+        // readonly LinkedList<Clip> _clips = new();
 
-        /// <summary>All clip displays.</summary>
-        readonly List<ClipDisplay> _displays = [];
+        // /// <summary>All clip displays.</summary>
+        // readonly List<ClipDisplay> _displays = [];
 
         /// <summary>Key status.</summary>
         bool _letterPressed = false;
@@ -86,61 +85,6 @@ namespace WinClip
         const int MAX_CLIPS = 10;
         #endregion
 
-        #region Native Methods
-
-        #region Definitions
-
-        [Flags]
-        public enum KBDLLHOOKSTRUCTFlags : uint
-        {
-            LLKHF_EXTENDED = 0x01,
-            LLKHF_INJECTED = 0x10,
-            LLKHF_ALTDOWN = 0x20,
-            LLKHF_UP = 0x80,
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        public struct KBDLLHOOKSTRUCT
-        {
-            public uint vkCode;    // A virtual-key code in the range 1 to 254.
-            public uint scanCode;  // A hardware scan code for the key.
-            public KBDLLHOOKSTRUCTFlags flags;
-            public uint time;
-            public UIntPtr dwExtraInfo;
-        }
-
-        /// <summary> https://www.pinvoke.net/default.aspx/Enums/HookType.html </summary>
-        // Global hooks are not supported in the.NET Framework except for WH_KEYBOARD_LL and WH_MOUSE_LL.
-        public enum HookType : int
-        {
-            WH_KEYBOARD_LL = 13,
-            WH_MOUSE_LL = 14
-        }
-
-        /// <summary>Defines the callback for the hook. Apparently you can have multiple typed overloads.</summary>
-        internal delegate int HookProc(int code, int wParam, ref KBDLLHOOKSTRUCT lParam);
-        #endregion
-
-        [DllImport("User32.dll")]
-        static extern IntPtr SetClipboardViewer(IntPtr hWndNewViewer);
-
-        [DllImport("User32.dll")] //, CharSet = CharSet.Auto)]
-        static extern bool ChangeClipboardChain(IntPtr hWndRemove, IntPtr hWndNewNext);
-
-        [DllImport("user32.dll")]
-        static extern int CallNextHookEx(IntPtr idHook, int nCode, int wParam, ref KBDLLHOOKSTRUCT lParam);
-
-        [DllImport("user32.dll")]
-        static extern IntPtr SetWindowsHookEx(HookType hookType, HookProc lpfn, IntPtr hMod, uint dwThreadId);
-
-        [DllImport("user32.dll")]
-        static extern bool UnhookWindowsHookEx(IntPtr hInstance);
-
-        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-//        [DllImport("kernel32.dll", CharSet = CharSet.Ansi, SetLastError = true)]
-        static extern IntPtr GetModuleHandle(string lpModuleName);
-        #endregion
-
         #region Lifecycle
         /// <summary>
         /// Constructor.
@@ -151,19 +95,27 @@ namespace WinClip
 
             string appDir = MiscUtils.GetAppDataDir("WinClip", "Ephemera");
 
-            Visible = _debug;
+            Visible = _debug; //TODO doesn't work - like C:\Dev\Misc\NLab\TrayExForm
 
             // Init clip displays.
             int x = 5;
             int y = 5;
             for (int i = 0; i < MAX_CLIPS; i++)
             {
-                ClipDisplay cd = new() { Location = new Point(x, y), Id = i };
-                _displays.Add(cd);
+                ClipDisplay_1 cd = new() { Location = new Point(x, y), Id = i };
+                cd.Click += (s, e) => { };
+                cd.DoubleClick += (s, e) => { };
+                _clips.AddLast(cd);
                 Controls.Add(cd);
-                cd.ClipRequest += Cd_ClipRequest;
                 //x = cd.Right + 5;
                 y = cd.Bottom + 5;
+
+
+                //_displays.Add(cd);
+                //Controls.Add(cd);
+                //cd.ClipRequest += Cd_ClipRequest;
+                ////x = cd.Right + 5;
+                //y = cd.Bottom + 5;
             }
 
             UpdateClipDisplays();
@@ -176,7 +128,7 @@ namespace WinClip
             if (!_debug)
             {
                 //Height = h + 55;
-                Width = _displays[0].Right + borderWidth * 2 + 5;
+                Width = _clips.First.Value.Width + borderWidth * 2 + 10;
             }
 
             // Init controls.
@@ -189,13 +141,13 @@ namespace WinClip
 
             if (_debug)
             {
-                rtbText.LoadFile(@"..\..\\ex.rtf");
+               // rtbText.LoadFile(@"..\..\\ex.rtf");
             }
 
             btnClear.Click += (_, __) => tvInfo.Clear();
             lblLetter.Text = _keyTrigger.ToString();
 
-            _nextCb = SetClipboardViewer(Handle);
+            _nextCb = CB.SetClipboardViewer(Handle);
 
             // HL messages of interest.
             _clipboardMessages = new()
@@ -219,8 +171,8 @@ namespace WinClip
             //   within the code associated with the current process.
             // dwThreadId: Specifies the identifier of the thread with which the hook procedure is to be associated.If this parameter is
             //   zero, the hook procedure is associated with all existing threads running in the same desktop as the calling thread.
-            IntPtr hModule = GetModuleHandle(module!.ModuleName!);
-            _hhook = SetWindowsHookEx(HookType.WH_KEYBOARD_LL, KeyboardHookProc, hModule, 0);
+            IntPtr hModule = CB.GetModuleHandle(module!.ModuleName!);
+            _hhook = CB.SetWindowsHookEx(CB.HookType.WH_KEYBOARD_LL, KeyboardHookProc, hModule, 0);
 
             // Paste test.
             //_ticks = 5;
@@ -228,46 +180,25 @@ namespace WinClip
             //timer1.Enabled = true;
         }
 
-        ///// <summary>
-        ///// Override finalizer only if 'Dispose(bool disposing)' has code to free unmanaged resources.
-        ///// </summary>
-        //~ClipboardEx()
-        //{
-        //    Dispose(false);
-        //}
-
-        ///// <summary>
-        ///// Boilerplate.
-        ///// </summary>
-        //public new void Dispose()
-        //{
-        //    Dispose(true);
-        //    GC.SuppressFinalize(this);
-        //    base.Dispose();
-        //}
-
         /// <summary>
         /// Boilerplate.
         /// </summary>
         protected override void Dispose(bool disposing)
         {
-            if (!_disposed)
+            if (_disposed) return;
+
+            if (disposing)
             {
-                if (disposing)
-                {
-                    // called via myClass.Dispose(). 
-                    // OK to use any private object references
-                    // Dispose managed state (managed objects).
-                    components.Dispose();
-                }
-
-                // Release unmanaged resources.
-                // Set large fields to null.
-                ChangeClipboardChain(Handle, _nextCb);
-                UnhookWindowsHookEx(_hhook);
-
-                _disposed = true;
+                // OK to use any private object references.
+                // Dispose managed state (managed objects).
+                components.Dispose();
             }
+
+            // Release unmanaged resources, set large fields to null.
+            CB.ChangeClipboardChain(Handle, _nextCb);
+            CB.UnhookWindowsHookEx(_hhook);
+
+            _disposed = true;
 
             base.Dispose(disposing);
         }
@@ -279,50 +210,76 @@ namespace WinClip
         /// </summary>
         void UpdateClipDisplays()
         {
-            // Remove tail.
+            // Remove tail(s).
             while (_clips.Count > MAX_CLIPS)
             {
                 _clips.RemoveLast();
             }
 
             // Fill UI with what we have.
-            for (int i = 0; i < MAX_CLIPS; i++)
+            foreach (var clip in _clips)
             {
-                var ds = _displays[i];
-                ds.Show();
-
-                if (i < _clips.Count)
+                clip.Show();
+                switch (clip.Ctype)
                 {
-                    var clip = _clips.ElementAt(i);
+                    case ClipType.Empty:
+                        clip.SetEmpty();
+                        //ds.Visible = Debug;
+                        break;
 
-                    switch (clip.Ctype)
-                    {
-                        case ClipType.Empty:
-                            ds.SetEmpty();
-                            //ds.Visible = Debug;
-                            break;
+                    case ClipType.Image:
+//                        clip.SetImage(clip.Bitmap!, _fitImage);
+                        break;
 
-                        case ClipType.Image:
-                            ds.SetImage(clip.Bitmap!, _fitImage);
-                            break;
+                    case ClipType.Other:
+//                        clip.SetOther(clip.Data!.ToString()!);
+                        break;
 
-                        case ClipType.Other:
-                            ds.SetOther(clip.Data!.ToString()!);
-                            break;
-
-                        case ClipType.PlainText:
-                        case ClipType.RichText:
-                        case ClipType.FileList:
-                            ds.SetText(clip.Ctype, clip.Text);
-                            break;
-                    }
-                }
-                else
-                {
-                    ds.SetEmpty();
-                    //ds.Visible = _settings.Debug;
+                    case ClipType.PlainText:
+                    case ClipType.RichText:
+                    case ClipType.FileList:
+                        clip.SetText(clip.Ctype, clip.Text);
+                        break;
                 }
             }
+
+            //for (int i = 0; i < MAX_CLIPS; i++)
+            //{
+            //    var ds = _clips[i];
+            //    ds.Show();
+
+            //    if (i < _clips.Count)
+            //    {
+            //        var clip = _clips.ElementAt(i);
+
+            //        switch (clip.Ctype)
+            //        {
+            //            case ClipType.Empty:
+            //                ds.SetEmpty();
+            //                //ds.Visible = Debug;
+            //                break;
+
+            //            case ClipType.Image:
+            //                ds.SetImage(clip.Bitmap!, _fitImage);
+            //                break;
+
+            //            case ClipType.Other:
+            //                ds.SetOther(clip.Data!.ToString()!);
+            //                break;
+
+            //            case ClipType.PlainText:
+            //            case ClipType.RichText:
+            //            case ClipType.FileList:
+            //                ds.SetText(clip.Ctype, clip.Text);
+            //                break;
+            //        }
+            //    }
+            //    else
+            //    {
+            //        ds.SetEmpty();
+            //        //ds.Visible = _settings.Debug;
+            //    }
+            //}
         }
         #endregion
 
@@ -335,7 +292,7 @@ namespace WinClip
         {
             uint ret = 0;
 
-            if (_clipboardMessages is not null && _clipboardMessages.TryGetValue(m.Msg, out MsgSpec? value))
+            if (_clipboardMessages.TryGetValue(m.Msg, out MsgSpec? value))
             {
                 MsgSpec sp = value;
                 Tell($"WndProc message {sp.Name} HWnd:{m.HWnd} Msg:{m.Msg} WParam:{m.WParam} LParam:{m.LParam} ");
@@ -362,8 +319,9 @@ namespace WinClip
         uint CbDraw(Message m)
         {
             int retries = 5;
+            uint ret = 99;
 
-            while(retries > 0)
+            while (ret != 0 && retries > 0)
             {
                 try
                 {
@@ -372,81 +330,101 @@ namespace WinClip
                     // Do something...
                     if (dobj is not null)
                     {
-                        // Info about the source window.
+                        // Info about the originating window.
                         IntPtr hwnd = WM.ForegroundWindow;
                         var info = WM.GetAppWindowInfo(hwnd);
-                        var procName = Process.GetProcessById(info.Pid).ProcessName;
-                        var appPath = Process.GetProcessById(info.Pid).MainModule!.FileName;
-                        var appName = Path.GetFileName(appPath);
-                        //StringBuilder title = new(100);
-                        //int res = W32.GetWindowText(hwnd, title, 100);
+                        var process = Process.GetProcessById(info.Pid);
+                        var procName = process.ProcessName;
+                        var appName = Path.GetFileName(process.MainModule!.FileName);
 
-                        if(info.Title.Length > 0)
+                        // Data type info.
+                        var dtypes = dobj.GetFormats();
+                        var stypes = $"CbDraw dtypes:{string.Join(",", dtypes)}";
+
+                        //Tell($"CbDraw COPY appName:{appName} procName:{procName} title:{info.Title} types:{stypes}");
+
+                        // Determine data type. This is only interested in text and images - all others are passed on to smarter clients.
+
+
+                        ClipDisplay_1? clip = null;
+
+                        //ClipDisplay_1 clip = new()
+                        //{
+                        //    Ctype = ClipType.Other,
+                        //    Data = Clipboard.GetDataObject(),
+                        //    OriginatingApp = appName ?? "Unknown",
+                        //    OriginatingTitle = info.Title.ToString()
+                        //};
+
+                        if (Clipboard.ContainsText())
                         {
-                            Tell($"CbDraw COPY appName:{appName} procName:{procName} title:{info.Title}");
-
-                            // Data type info.
-                            var dtypes = dobj.GetFormats();
-                            //var stypes = $"CbDraw dtypes:{string.Join(",", dtypes)}";
-                            //Tell("INF", stypes);
-
-                            Clip clip = new()
+                            // Is it rich text? dtypes: Rich Text Format, Rich Text Format Without Objects, RTF As Text.
+                            var ctype = ClipType.PlainText;
+                            foreach(var dt in dtypes)
                             {
-                                Ctype = ClipType.Other,
-                                Data = Clipboard.GetDataObject(),
-                                OrigApp = appName ?? "Unknown",
-                                OrigTitle = info.Title.ToString()
-                            };
-
-                            if (Clipboard.ContainsText())
-                            {
-                                // Is it rich text? dtypes: Rich Text Format, Rich Text Format Without Objects, RTF As Text.
-                                var ctype = ClipType.PlainText;
-                                foreach(var dt in dtypes)
+                                if (dt.Contains("Rich Text Format") || dt.Contains("RTF"))
                                 {
-                                    if(dt.Contains("Rich Text Format") || dt.Contains("RTF"))
-                                    {
-                                        ctype = ClipType.RichText;
-                                        break;
-                                    }
+                                    ctype = ClipType.RichText;
+                                    break;
                                 }
-
-                                clip.Ctype = ctype;
-                                clip.Text = Clipboard.GetText();
-                            }
-                            else if (Clipboard.ContainsFileDropList())
-                            {
-                                clip.Ctype = ClipType.FileList;
-                                clip.Text = string.Join(Environment.NewLine, Clipboard.GetFileDropList());
-                            }
-                            else if (Clipboard.ContainsImage())
-                            {
-                                clip.Ctype = ClipType.Image;
-                                clip.Bitmap = Clipboard.GetImage() as Bitmap;
-                            }
-                            else
-                            {
-                                // Something else, don't try to show it.
                             }
 
+                            clip = new()
+                            {
+                                Ctype = ctype,
+                                Text = Clipboard.GetText().Left(80)
+                            };
+                        }
+                        //else if (Clipboard.ContainsFileDropList())
+                        //{
+                        //    clip.Ctype = ClipType.FileList;
+                        //    clip.Text = string.Join(Environment.NewLine, Clipboard.GetFileDropList());
+                        //}
+                        else if (Clipboard.ContainsImage())
+                        {
+                            clip = new()
+                            {
+                                Ctype = ClipType.Image,
+                                Bitmap = Clipboard.GetImage() as Bitmap // TODO thumbnail
+                            };
+                        }
+                        //else
+                        //{
+                        //    // Something else, don't try to show it.
+                        //}
+
+                        if (clip != null)
+                        {
+                            clip.Data = Clipboard.GetDataObject();
+                            clip.OriginatingApp = appName ?? "Unknown";
+                            clip.OriginatingTitle = info.Title.ToString();
                             _clips.AddFirst(clip);
                             UpdateClipDisplays();
                         }
                         else
                         {
-                            Tell($"ERR CbDraw Title:{info.Title}");
+                            // Pass along to the next in the chain.
+                            ret = (uint)W32.SendMessage(_nextCb, m.Msg, m.WParam, m.LParam);
                         }
+                        //ClipDisplay_1 clip = new()
+                        //{
+                        //    Ctype = ClipType.Other,
+                        //    Data = Clipboard.GetDataObject(),
+                        //    OriginatingApp = appName ?? "Unknown",
+                        //    OriginatingTitle = info.Title.ToString()
+                        //};
+
+                        ret = 0;
                     }
                     else
                     {
                         Tell($"ERR CbDraw GetDataObject() is null");
+                        retries--;
                     }
-
-                    retries = 0;
                 }
                 catch (ExternalException ex)
                 {
-                    // TODO retry: Data could not be retrieved from the Clipboard.
+                    // Retry: Data could not be retrieved from the Clipboard.
                     // This typically occurs when the Clipboard is being used by another process.
                     Tell($"ERR CbDraw WM_DRAWCLIPBOARD ExternalException:{ex}");
                     retries--;
@@ -459,10 +437,7 @@ namespace WinClip
                 }
             }
 
-            // Pass along to the next in the chain.
-            var ret = W32.SendMessage(_nextCb, m.Msg, m.WParam, m.LParam);
-
-            return (uint)ret;
+            return ret;
         }
 
         /// <summary>
@@ -507,42 +482,42 @@ namespace WinClip
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        void Cd_ClipRequest(object? sender, ClipDisplay.ClipEventArgs e)
+        void Cd_ClipRequest(ClipDisplay_1 clip, bool singleClick) //   object? sender, ClipDisplay.ClipEventArgs e)
         {
-            if (sender is not null)
-            {
+            //if (sender is not null)
+          //  {
                 // Paste this selection and move it to the front.
 
-                var cd = (ClipDisplay)sender;
+             //   var cd = (ClipDisplay)sender;
 
-                switch (e.EventType)
+            if (singleClick)
+            {
+                Tell("!!! Got a single click");
+                int i = clip.Id;
+                if (i >= 0 && i < _clips.Count)
                 {
-                    case ClipDisplay.ClipRequestType.Click:
-                        Tell("!!! Got a click");
-                        int i = cd.Id;
-                        if (i >= 0 && i < _clips.Count)
-                        {
-                            Clip clip = _clips.ElementAt(i);
-                            if (clip.Data is not null)
-                            {
-                                Clipboard.SetDataObject(clip.Data);
-                                DoPaste();
-                                // Push to head of class.
-                                _clips.Remove(clip);
-                                _clips.AddFirst(clip);
-                            }
-                            else
-                            {
-                                _clips.Remove(clip);
-                            }
-                            UpdateClipDisplays();
-                            Visible = _debug;
-                        }
-                        else
-                        {
-                            // error?
-                        }
-                        break;
+                    //Clip clip = _clips.ElementAt(i);
+                    if (clip.Data is not null)
+                    {
+                        Clipboard.SetDataObject(clip.Data);
+                        DoPaste();
+                        // Push to head of class.
+                        _clips.Remove(clip);
+                        _clips.AddFirst(clip);
+                    }
+                    else
+                    {
+                        _clips.Remove(clip);
+                    }
+                    UpdateClipDisplays();
+                    Visible = _debug;
+
+                }
+                else // double
+                {
+                    Tell("!!! Got a double click TODO");
+
+
                 }
 
                 //  Also could do left, right, delete, etc.
@@ -552,7 +527,7 @@ namespace WinClip
         /// <summary>
         /// Send paste to focus window.
         /// </summary>
-        public void DoPaste()
+        void DoPaste()
         {
             // TODO but the focus is me now!
 
@@ -579,13 +554,13 @@ namespace WinClip
         /// <param name="wParam">One of the following messages: WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, or WM_SYSKEYUP.</param>
         /// <param name="lParam">Pointer to a KBDLLHOOKSTRUCT structure.</param>
         /// <returns></returns>
-        public int KeyboardHookProc(int code, int wParam, ref KBDLLHOOKSTRUCT lParam)
+        int KeyboardHookProc(int code, int wParam, ref CB.KBDLLHOOKSTRUCT lParam)
         {
             if (code >= 0)
             {
                 Keys key = (Keys)lParam.vkCode;
 
-                Tell($"KeyboardHookProc code:{code} wParam:{wParam} key:{key} scancode:{lParam.scanCode}");
+                // Tell($"KeyboardHookProc code:{code} wParam:{wParam} key:{key} scancode:{lParam.scanCode}");
 
                 if (code >= 0)
                 {
@@ -618,7 +593,7 @@ namespace WinClip
                 }
             }
 
-            return CallNextHookEx(_hhook, code, wParam, ref lParam);
+            return CB.CallNextHookEx(_hhook, code, wParam, ref lParam);
         }
         #endregion
 
@@ -628,8 +603,12 @@ namespace WinClip
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void Debug_Click(object sender, EventArgs e)
+        void Debug_Click(object sender, EventArgs e)
         {
+            foreach (var clip in _clips)
+            {
+                Tell(clip.ToString());
+            }
 
         }
 
