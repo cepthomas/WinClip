@@ -19,47 +19,96 @@ namespace WinClip
     /// </summary>
     public partial class ClipDisplay : UserControl
     {
-        /// <summary>For owner use.</summary>
-        public int Id { get; set; } = -1;
+        ///// <summary>For owner use.</summary>
+        //public int Id { get; set; } = -1;
 
-        #region Events
-        /// <summary>Tell the boss.</summary>
-        public event EventHandler<ClipEventArgs>? ClipRequest;
+        /// <summary>Used for unspecified states.</summary>
+        readonly SolidBrush _defaultForeBrush = new(Color.Black);
 
-        public enum ClipRequestType { Click, DoubleClick }
+        /// <summary>Used for unspecified states.</summary>
+        readonly SolidBrush _defaultBackBrush = new(Color.White);
 
-        public class ClipEventArgs(ClipRequestType ce) : EventArgs
+        /// <summary>Original clipboard data. TODO persist clip data.</summary>
+        public object? Data { get; set; } = null;
+
+        /// <summary>Flavor.</summary>
+        public ClipType Ctype { get; set; } = ClipType.Empty;
+
+        /// <summary>For display.</summary>
+        public string? ShortText { get; set; } = null;
+
+        /// <summary>For display.</summary>
+        public Image? Thumbnail { get; set; } = null;
+
+        /// <summary>Who sourced it.</summary>
+        public string OriginatingApp { get; set; } = "Unknown";
+
+        /// <summary>Who sourced it.</summary>
+        public string OriginatingTitle { get; set; } = "Unknown";
+        
+        /// <summary>
+        /// Readable contents.
+        /// </summary>
+        /// <returns></returns>
+        public override string ToString()
         {
-            public ClipRequestType EventType { get; private set; } = ce;
+            List<string> ls = [
+                $"Ctype:[{Ctype}]",
+                $"Data:[{Data}]",
+                $"From App:[{OriginatingApp}]",
+                $"From Title:[{OriginatingTitle}]" ];
+
+            return string.Join(Environment.NewLine, ls);
         }
-        #endregion
 
         /// <summary>
         /// Constructor.
         /// </summary>
         public ClipDisplay()
         {
-            InitializeComponent();
-
-            rtbText.Dock = DockStyle.Fill;
-            rtbText.ScrollBars = RichTextBoxScrollBars.Horizontal;
-            rtbText.WordWrap = false;
-
-            picImage.Dock = DockStyle.Fill;
-
-            // Intercept UI.
-            picImage.Click += Control_Click;
-            rtbText.Click += Control_Click;
+            Size = new Size(200, 50);
+            BorderStyle = BorderStyle.FixedSingle;
         }
 
         /// <summary>
-        /// User control event.
+        /// Clean up any resources being used.
         /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        void Control_Click(object? sender, EventArgs e)
+        protected override void Dispose(bool disposing)
         {
-            ClipRequest?.Invoke(this, new ClipEventArgs(ClipRequestType.Click));
+            if (disposing)
+            {
+                _defaultForeBrush.Dispose();
+                _defaultBackBrush.Dispose();
+                // _stateTypes.ForEach(st => { st.Value.ForeBrush.Dispose(); st.Value.BackBrush.Dispose(); });
+            }
+            base.Dispose(disposing);
+        }
+
+        /// <summary>
+        /// Draw me.
+        /// </summary>
+        /// <param name="pe"></param>
+        protected override void OnPaint(PaintEventArgs pe)
+        {
+            // Setup.
+            pe.Graphics.Clear(BackColor);
+
+            switch (Ctype)
+            {
+                case ClipType.PlainText:
+                case ClipType.RichText:
+                    SizeF stext = pe.Graphics.MeasureString(ShortText, Font);
+                    pe.Graphics.DrawString(ShortText, Font, _defaultForeBrush, ClientRectangle);
+                    break;
+
+                case ClipType.Image:
+                    pe.Graphics.DrawImage(Thumbnail, 0, 0);
+                    break;
+
+                default:
+                    pe.Graphics.Clear(Color.SpringGreen);
+                    break;
+            }
         }
 
         /// <summary>
@@ -86,55 +135,6 @@ namespace WinClip
             {
                 sb.AppendLine("...");
             }
-
-            picImage.Hide();
-            rtbText.Show();
-            rtbText.Clear();
-
-            if(ctype == ClipType.RichText) // TODO ideally make a bmp of the rt - for now just colorize it to indicate.
-            {
-                var tcol = rtbText.SelectionColor;
-                rtbText.SelectionColor = Color.Red;
-                rtbText.AppendText(sb.ToString());
-                rtbText.SelectionColor = tcol;
-            }
-            else
-            {
-                rtbText.Text = sb.ToString();
-            }
-        }
-
-        /// <summary>
-        /// Image specific setup.
-        /// </summary>
-        /// <param name="bmp">The image.</param>
-        /// <param name="fit">Fit or clip.</param>
-        public void SetImage(Bitmap bmp, bool fit)
-        {
-            picImage.Show();
-            rtbText.Hide();
-            picImage.Image = fit ? bmp.Resize(Width, Height) : bmp;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="text"></param>
-        public void SetOther(string text)
-        {
-            picImage.Show();
-            rtbText.Hide();
-            rtbText.Text = text;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        public void SetEmpty()
-        {
-            picImage.Hide();
-            rtbText.Show();
-            rtbText.Text = "Empty";
         }
     }
 }
