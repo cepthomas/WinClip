@@ -7,12 +7,12 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
+using System.Text;
 using Ephemera.NBagOfTricks;
 using Ephemera.NBagOfUis;
 using W32 = Ephemera.Win32.Internals;
 using WM = Ephemera.Win32.WindowManagement;
 using CB = WinClip.Native;
-using System.Text;
 
 namespace WinClip
 {
