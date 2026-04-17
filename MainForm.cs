@@ -12,7 +12,7 @@ using Ephemera.NBagOfTricks;
 using Ephemera.NBagOfUis;
 using W32 = Ephemera.Win32.Internals;
 using WM = Ephemera.Win32.WindowManagement;
-using CB = WinClip.Native;
+using CB = Ephemera.Win32.Clipboard;
 
 namespace WinClip
 {

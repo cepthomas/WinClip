@@ -4,6 +4,33 @@
         <name>Ephemera.Win32</name>
     </assembly>
     <members>
+        <member name="T:Ephemera.Win32.Clipboard">
+            <summary>Native win32 interop.</summary>
+        </member>
+        <member name="T:Ephemera.Win32.Clipboard.HookType">
+            <summary> https://www.pinvoke.net/default.aspx/Enums/HookType.html </summary>
+        </member>
+        <member name="T:Ephemera.Win32.Clipboard.HookProc">
+            <summary>Defines the callback for the hook. Apparently you can have multiple typed overloads.</summary>
+        </member>
+        <member name="M:Ephemera.Win32.Clipboard.GetText">
+            <summary>
+            Get text from clipboard.
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:Ephemera.Win32.Clipboard.SetText(System.String)">
+            <summary>
+            Set text in clipboard.
+            </summary>
+            <param name="text"></param>
+        </member>
+        <member name="M:Ephemera.Win32.Clipboard.TryOpenClipboard">
+            <summary>
+            
+            </summary>
+            <exception cref="T:System.ComponentModel.Win32Exception"></exception>
+        </member>
         <member name="M:Ephemera.Win32.Internals.SendMessage(System.IntPtr,System.Int32,System.IntPtr,System.IntPtr)">
             <summary>
             Generic message sender.
