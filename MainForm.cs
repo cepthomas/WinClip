@@ -25,7 +25,7 @@ namespace WinClip
     /// - Handles all interactions at the Clipboard.XXX() API level.
     /// - Hooks keyboard to intercept magic paste key.
     /// </summary>
-    public partial class WinClip : Form
+    public partial class MainForm : Form
     {
         #region Types
         /// <summary>One handled clipboard API message.</summary>
@@ -70,7 +70,7 @@ namespace WinClip
         /// <summary>
         /// Constructor.
         /// </summary>
-        public WinClip()
+        public MainForm()
         {
             InitializeComponent();
 

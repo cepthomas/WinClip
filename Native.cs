@@ -6,7 +6,7 @@ using Ephemera.NBagOfTricks;
 
 namespace WinClip
 {
-    /// <summary>Native win32 interop.</summary>
+    /// <summary>Native win32 interop. TODOX => Win32 clipboard stuff</summary>
     public static class Native
     {
         [Flags]

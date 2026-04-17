@@ -1,7 +1,7 @@
 
 namespace WinClip
 {
-    partial class WinClip
+    partial class MainForm
     {
         /// <summary>
         /// Required designer variable.
@@ -96,7 +96,7 @@ namespace WinClip
             this.lblMatch.TabIndex = 8;
             this.lblMatch.Text = "!!";
             // 
-            // ClipboardEx
+            // MainForm
             // 
             this.ClientSize = new System.Drawing.Size(806, 598);
             this.Controls.Add(this.lblMatch);
@@ -107,7 +107,7 @@ namespace WinClip
             this.Controls.Add(this.rtbText);
             this.Controls.Add(this.tvInfo);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedToolWindow;
-            this.Name = "ClipboardEx";
+            this.Name = "MainForm";
             this.Text = "Hoo Haa";
             this.ResumeLayout(false);
         }
