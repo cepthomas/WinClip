@@ -12,7 +12,8 @@ using Ephemera.NBagOfTricks;
 using Ephemera.NBagOfUis;
 using W32 = Ephemera.Win32.Internals;
 using WM = Ephemera.Win32.WindowManagement;
-using CB = Ephemera.Win32.Clipboard;
+using CB = WinClip.Native;
+
 
 namespace WinClip
 {
@@ -199,6 +200,7 @@ namespace WinClip
             if (_clipboardMessages.TryGetValue(m.Msg, out MsgSpec? value))
             {
                 MsgSpec sp = value;
+
                 Tell($"WndProc message {sp.Name} HWnd:{m.HWnd} Msg:{m.Msg} WParam:{m.WParam} LParam:{m.LParam} ");
                 
                 // Call handler.
@@ -259,7 +261,7 @@ namespace WinClip
                                 if (dt.Contains("Rich Text Format") || dt.Contains("RTF"))
                                 {
                                     ctype = ClipType.RichText;
-                                    //Text = Clipboard.GetText().Left(80);
+                                    //ShortText = Clipboard.GetText().Left(80);
                                     break;
                                 }
                             }
@@ -267,26 +269,34 @@ namespace WinClip
                             clip = new()
                             {
                                 Ctype = ctype,
-                                Text = Clipboard.GetText().Left(80)
+                                ShortText = Clipboard.GetText().Left(80),
+                                Data = Clipboard.GetText()
                             };
                         }
                         else if (Clipboard.ContainsImage())
                         {
                             var bmp = Clipboard.GetImage() as Bitmap;
-                            int tnHeight = Height;
-                            int tnWidth = Width * Height / bmp.Width;
-                            bmp.Resize(tnWidth, tnHeight);
 
                             clip = new()
                             {
                                 Ctype = ClipType.Image,
-                                Thumbnail = bmp // Clipboard.GetImage() as Bitmap // TODO thumbnail
+                                //Thumbnail = bmp, // Clipboard.GetImage() as Bitmap // TODO thumbnail
+                                Data = bmp
                             };
+
+
+                            var tn = bmp.Resize(clip.Width, clip.Height);
+                            //scale = clipH / bmpH
+                            int tnHeight = clip.Height;
+                            int tnWidth = clip.Width * clip.Height / bmp.Height;
+
+                            clip.Thumbnail = bmp.Resize(tnWidth, tnHeight);
+
                         }
                         //else if (Clipboard.ContainsFileDropList())
                         //{
                         //    clip.Ctype = ClipType.FileList;
-                        //    clip.Text = string.Join(Environment.NewLine, Clipboard.GetFileDropList());
+                        //    clip.ShortText = string.Join(Environment.NewLine, Clipboard.GetFileDropList());
                         //}
                         //else
                         //{
@@ -311,6 +321,17 @@ namespace WinClip
                                 var clipx = _clips.Last();
                                 Controls.Remove(clipx);
                                 _clips.Remove(clipx);
+                            }
+
+                            // Assign locations.
+                            int xloc = 5;
+                            int yloc = 5;
+                            int yinc = clip.Height + 5;
+
+                            foreach (var cl in _clips)
+                            {
+                                cl.Location = new Point(xloc, yloc);
+                                yloc += yinc;
                             }
 
                             Invalidate();

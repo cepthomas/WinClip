@@ -19,8 +19,10 @@ namespace WinClip
     /// </summary>
     public partial class ClipDisplay : UserControl
     {
-        ///// <summary>For owner use.</summary>
-        //public int Id { get; set; } = -1;
+        static int _nextId = 1;
+
+        /// <summary>For owner use.</summary>
+        public int Id { get; set; } = -1;
 
         /// <summary>Used for unspecified states.</summary>
         readonly SolidBrush _defaultForeBrush = new(Color.Black);
@@ -53,6 +55,7 @@ namespace WinClip
         public override string ToString()
         {
             List<string> ls = [
+                $"Id:[{Id}]",
                 $"Ctype:[{Ctype}]",
                 $"Data:[{Data}]",
                 $"From App:[{OriginatingApp}]",
@@ -68,6 +71,7 @@ namespace WinClip
         {
             Size = new Size(200, 50);
             BorderStyle = BorderStyle.FixedSingle;
+            Id = _nextId++;
         }
 
         /// <summary>
