@@ -86,6 +86,12 @@
             ? Be careful with the string structure fields: UnmanagedType.LPTStr will be marshalled as unicode string so only
             the first character will be recognized by the function. Use UnmanagedType.LPStr instead.
         </member>
+        <member name="T:Ephemera.Win32.Internals.KBDLLHOOKSTRUCTFlags">
+            <summary>For CallNextHookEx().</summary>
+        </member>
+        <member name="T:Ephemera.Win32.Internals.HookProc">
+            <summary>Defines the callback for the hook. Apparently you can have multiple typed overloads.</summary>
+        </member>
         <member name="M:Ephemera.Win32.Internals.ShellExecute(System.IntPtr,System.String,System.String,System.String,System.String,System.Int32)">
             <summary>Performs an operation on a specified file.
             Args: https://learn.microsoft.com/en-us/windows/win32/api/shellapi/ns-shellapi-shellexecuteinfoa.

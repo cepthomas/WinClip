@@ -39,17 +39,17 @@ namespace WinClip
         /// <summary></summary>
         readonly Keys _keyTrigger = Keys.Z;
 
-        ///// <summary>Handle to the LL hook. Needed to unhook and call the next hook in the chain.</summary>
-        //KBDLL readonly IntPtr _hhook = IntPtr.Zero;
+        /// <summary>Handle to the LL hook. Needed to unhook and call the next hook in the chain.</summary>
+        readonly IntPtr _hhook = IntPtr.Zero;
 
         /// <summary>All clips in the collection.</summary>
         readonly LinkedList<ClipDisplay> _clips = new();
 
-        ///// <summary>Key status.</summary>
-        //KBDLL bool _letterPressed = false;
+        /// <summary>Key status.</summary>
+        bool _letterPressed = false;
 
-        ///// <summary>Key status.</summary>
-        //KBDLL bool _winPressed = false;
+        /// <summary>Key status.</summary>
+        bool _winPressed = false;
 
         /// <summary>Manage resources.</summary>
         bool _disposed;
@@ -90,16 +90,16 @@ namespace WinClip
             btnClear.Click += (_, __) => tvInfo.Clear();
             lblLetter.Text = _keyTrigger.ToString();
 
-            //KBDLL  Init LL keyboard hook.
-            //using Process process = Process.GetCurrentProcess();
-            //using ProcessModule? module = process.MainModule;
-            //// hMod: Handle to the DLL containing the hook procedure pointed to by the lpfn parameter. The hMod parameter must be set
-            ////   to NULL if the dwThreadId parameter specifies a thread created by the current process and if the hook procedure is
-            ////   within the code associated with the current process.
-            //// dwThreadId: Specifies the identifier of the thread with which the hook procedure is to be associated.If this parameter is
-            ////   zero, the hook procedure is associated with all existing threads running in the same desktop as the calling thread.
-            //IntPtr hModule = CB.GetModuleHandle(module!.ModuleName!);
-            //_hhook = CB.SetWindowsHookEx(CB.HookType.WH_KEYBOARD_LL, KeyboardHookProc, hModule, 0);
+            //  Init LL keyboard hook.
+            using Process process = Process.GetCurrentProcess();
+            using ProcessModule? module = process.MainModule;
+            // hMod: Handle to the DLL containing the hook procedure pointed to by the lpfn parameter. The hMod parameter must be set
+            //   to NULL if the dwThreadId parameter specifies a thread created by the current process and if the hook procedure is
+            //   within the code associated with the current process.
+            // dwThreadId: Specifies the identifier of the thread with which the hook procedure is to be associated.If this parameter is
+            //   zero, the hook procedure is associated with all existing threads running in the same desktop as the calling thread.
+            IntPtr hModule = W32.GetModuleHandle(module!.ModuleName!);
+            _hhook = W32.SetWindowsHookEx(W32.WH_KEYBOARD_LL, KeyboardHookProc, hModule, 0);
 
             // Paste test.
             //_ticks = 5;
@@ -136,7 +136,7 @@ namespace WinClip
 
             // Release unmanaged resources, set large fields to null.
             RemoveClipboardFormatListener(Handle);
-            //KBDLL CB.UnhookWindowsHookEx(_hhook);
+            W32.UnhookWindowsHookEx(_hhook);
 
             _disposed = true;
 
@@ -338,46 +338,46 @@ namespace WinClip
             //SendMessage(hwnd, 0x0302, IntPtr.Zero, IntPtr.Zero); // WM_PASTE
         }
 
-        ///// <summary>
-        ///// //KBDLL Low level hook function. Sniffs for magic key.
-        ///// </summary>
-        ///// <param name="code">If less than zero, pass the message to the CallNextHookEx function without further processing.</param>
-        ///// <param name="wParam">One of the following messages: WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, or WM_SYSKEYUP.</param>
-        ///// <param name="lParam">Pointer to a KBDLLHOOKSTRUCT structure.</param>
-        ///// <returns></returns>
-        //int KeyboardHookProc(int code, int wParam, ref CB.KBDLLHOOKSTRUCT lParam)
-        //{
-        //    if (code >= 0)
-        //    {
-        //        Keys key = (Keys)lParam.vkCode;
-        //        // Tell($"KeyboardHookProc code:{code} wParam:{wParam} key:{key} scancode:{lParam.scanCode}");
-        //        if (code >= 0)
-        //        {
-        //            // Update statuses.
-        //            bool pressed = wParam == W32.WM_KEYDOWN || wParam == W32.WM_SYSKEYDOWN;
-        //            //bool up = wParam == WM_KEYUP || wParam == WM_SYSKEYUP;
-        //            if (key == Keys.LWin || key == Keys.RWin)
-        //            {
-        //                _winPressed = pressed;
-        //            }
-        //            if (key == _keyTrigger)
-        //            {
-        //                _letterPressed = pressed;
-        //            }
-        //            bool match = _winPressed && _letterPressed;
-        //            // Diagnostics.
-        //            lblWin.BackColor = _winPressed ? _drawColor : Color.Transparent;
-        //            lblLetter.BackColor = _letterPressed ? _drawColor : Color.Transparent;
-        //            lblMatch.BackColor = match ? _drawColor : Color.Transparent;
-        //            if (match)
-        //            {
-        //                // show UI;
-        //                Visible = true;
-        //            }
-        //        }
-        //    }
-        //    return CB.CallNextHookEx(_hhook, code, wParam, ref lParam);
-        //}
+        /// <summary>
+        /// Low level hook function. Sniffs for magic key.
+        /// </summary>
+        /// <param name="code">If less than zero, pass the message to the CallNextHookEx function without further processing.</param>
+        /// <param name="wParam">One of the following messages: WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, or WM_SYSKEYUP.</param>
+        /// <param name="lParam">Pointer to a KBDLLHOOKSTRUCT structure.</param>
+        /// <returns></returns>
+        int KeyboardHookProc(int code, int wParam, ref W32.KBDLLHOOKSTRUCT lParam)
+        {
+           if (code >= 0)
+           {
+               Keys key = (Keys)lParam.vkCode;
+               // Tell($"KeyboardHookProc code:{code} wParam:{wParam} key:{key} scancode:{lParam.scanCode}");
+               if (code >= 0)
+               {
+                   // Update statuses.
+                   bool pressed = wParam == W32.WM_KEYDOWN || wParam == W32.WM_SYSKEYDOWN;
+                   //bool up = wParam == WM_KEYUP || wParam == WM_SYSKEYUP;
+                   if (key == Keys.LWin || key == Keys.RWin)
+                   {
+                       _winPressed = pressed;
+                   }
+                   if (key == _keyTrigger)
+                   {
+                       _letterPressed = pressed;
+                   }
+                   bool match = _winPressed && _letterPressed;
+                   // Diagnostics.
+                   lblWin.BackColor = _winPressed ? _drawColor : Color.Transparent;
+                   lblLetter.BackColor = _letterPressed ? _drawColor : Color.Transparent;
+                   lblMatch.BackColor = match ? _drawColor : Color.Transparent;
+                   if (match)
+                   {
+                       // show UI;
+                       Visible = true;
+                   }
+               }
+           }
+           return W32.CallNextHookEx(_hhook, code, wParam, ref lParam);
+        }
         #endregion
 
         #region Debug
