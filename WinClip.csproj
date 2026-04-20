@@ -30,6 +30,10 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <Compile Remove="MainForm_orig.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
       <PackageReference Include="System.Drawing.Common" Version="8.0.6" />
     </ItemGroup>
 

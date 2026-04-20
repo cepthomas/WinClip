@@ -52,7 +52,7 @@ namespace WinClip
             this.btnDebug.Name = "btnDebug";
             this.btnDebug.Size = new System.Drawing.Size(94, 29);
             this.btnDebug.TabIndex = 2;
-            this.btnDebug.Text = "Do Stuff";
+            this.btnDebug.Text = "Do Debug";
             this.btnDebug.UseVisualStyleBackColor = true;
             this.btnDebug.Click += new System.EventHandler(this.Debug_Click);
             // 
