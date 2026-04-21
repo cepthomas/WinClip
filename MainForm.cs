@@ -27,36 +27,30 @@ namespace WinClip
     /// </summary>
     public partial class MainForm : Form
     {
-        #region Types
-        /// <summary>One handled clipboard API message.</summary>
-        record MsgSpec(string Name, Func<Message, int> Handler, string Description);
-        #endregion
-
         #region Fields
-        /// <summary>Cosmetics.</summary>
-        readonly Color _drawColor = Color.LimeGreen;
+        /// <summary>App logger.</summary>
+        readonly Logger _logger = LogManager.CreateLogger("APP");
 
-        /// <summary></summary>
-        readonly Keys _keyTrigger = Keys.Z;
+        /// <summary>The settings.</summary>
+        readonly UserSettings _settings;
 
-        /// <summary>Handle to the LL hook. Needed to unhook and call the next hook in the chain.</summary>
+        /// <summary>Current foreground window.</summary>
+        readonly IntPtr _forewin = IntPtr.Zero;
+
+        /// <summary>Handle to the LL hook.</summary>
         readonly IntPtr _hhook = IntPtr.Zero;
 
         /// <summary>All clips in the collection.</summary>
         readonly LinkedList<ClipDisplay> _clips = new();
 
-        /// <summary>Key status.</summary>
-        bool _letterPressed = false;
-
-        /// <summary>Key status.</summary>
-        bool _winPressed = false;
-
         /// <summary>Manage resources.</summary>
         bool _disposed;
 
-        const int MAX_CLIPS = 10;
-
-        /// <summary>Hacks to work around win11 bug.</summary>
+        // Hacks to work around win11 bug.
+        // There appears to be a windows bug in KB5079473 that causes Prtint Screen to
+        // generate more than one message. This is a crude way to protect from that until MS fixes the issue.
+        // https://learn.microsoft.com/en-us/answers/questions/5593390/windows-11-25h2-snipping-tool-print-screen-saves-t
+        // https://learn.microsoft.com/en-us/answers/questions/5831588/there-are-two-copies-of-the-screenshot-in-the-clip
         Size _lastBmpSize = new();
         DateTime _lastBmpTime = DateTime.Now;
         #endregion
@@ -70,9 +64,19 @@ namespace WinClip
             InitializeComponent();
 
             string appDir = MiscUtils.GetAppDataDir("WinClip", "Ephemera");
+            // Load settings first before initializing.
+            _settings = (UserSettings)SettingsCore.Load(appDir, typeof(UserSettings));
 
-            Visible = false; // TODO doesn't work - like C:\Dev\Misc\NLab\TrayExForm
+            // Init logging.
+            string logFileName = Path.Combine(appDir, "log.txt");
+            LogManager.LogMessage += LogManager_LogMessage;
+            LogManager.Run(logFileName, 100000);
 
+            // Main form. TODO option to always show?
+            Location = _settings.FormGeometry.Location;
+            Size = _settings.FormGeometry.Size;
+            //WindowState = FormWindowState.Normal;
+            Visible = false; // TODO doesn't work - like C:\Dev\Misc\NLab\TrayExForm - use Minimized?
             // Clean me up.
             var borderWidth = (Width - ClientSize.Width) / 2;
             //Width = x + borderWidth * 2;
@@ -88,18 +92,30 @@ namespace WinClip
             ];
 
             btnClear.Click += (_, __) => tvInfo.Clear();
-            lblLetter.Text = _keyTrigger.ToString();
+            lblLetter.Text = "Z";// _keyTrigger.ToString();
+
+
+            //////////////////////////////////////////////////////////////////////////////////////
+
 
             //  Init LL keyboard hook.
             using Process process = Process.GetCurrentProcess();
             using ProcessModule? module = process.MainModule;
-            // hMod: Handle to the DLL containing the hook procedure pointed to by the lpfn parameter. The hMod parameter must be set
-            //   to NULL if the dwThreadId parameter specifies a thread created by the current process and if the hook procedure is
-            //   within the code associated with the current process.
-            // dwThreadId: Specifies the identifier of the thread with which the hook procedure is to be associated.If this parameter is
-            //   zero, the hook procedure is associated with all existing threads running in the same desktop as the calling thread.
             IntPtr hModule = W32.GetModuleHandle(module!.ModuleName!);
             _hhook = W32.SetWindowsHookEx(W32.WH_KEYBOARD_LL, KeyboardHookProc, hModule, 0);
+            _logger.Debug($">>>10 APP hndModule:{hModule} _hhook:{_hhook}");
+
+            //using Process process = Process.GetCurrentProcess();
+            //using ProcessModule? module = process.MainModule;
+            //// hMod: Handle to the DLL containing the hook procedure pointed to by the lpfn parameter. The hMod parameter must be set
+            ////   to NULL if the dwThreadId parameter specifies a thread created by the current process and if the hook procedure is
+            ////   within the code associated with the current process.
+            //// dwThreadId: Specifies the identifier of the thread with which the hook procedure is to be associated.If this parameter is
+            ////   zero, the hook procedure is associated with all existing threads running in the same desktop as the calling thread.
+            //IntPtr hModule = CB.GetModuleHandle(module!.ModuleName!);
+            //_hhook = CB.SetWindowsHookEx(CB.HookType.WH_KEYBOARD_LL, KeyboardHookProc, hModule, 0);
+
+
 
             // Paste test.
             //_ticks = 5;
@@ -114,11 +130,37 @@ namespace WinClip
         /// <exception cref="InvalidOperationException"></exception>
         protected override void OnLoad(EventArgs e)
         {
+            //GetProcess("MainForm()"); // needs hModule
+
             var res = AddClipboardFormatListener(Handle);
+
+            W32.RegisterHotKey(Handle, (int)Keys.A, W32.MOD_ALT | W32.MOD_CTRL);
+            W32.RegisterHotKey(Handle, (int)Keys.D9, W32.MOD_CTRL);
 
             if (!res) throw new InvalidOperationException("!!!!!!!!!!");
 
             base.OnLoad(e);
+        }
+
+        /// <summary>
+        /// Clean up on shutdown.
+        /// </summary>
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            LogManager.Stop();
+
+            // Save user settings.
+            _settings.FormGeometry = new()
+            {
+               X = Location.X,
+               Y = Location.Y,
+               Width = Width,
+               Height = Height
+            };
+
+            _settings.Save();
+
+            base.OnFormClosing(e);
         }
 
         /// <summary>
@@ -151,152 +193,158 @@ namespace WinClip
         /// <param name="m"></param>
         protected override void WndProc(ref Message m)
         {
-            switch (m.Msg)
+            // m.HWnd  A handle to the window whose window procedure receives the message
+            // This member is NULL when the message is a thread message.
+
+            // IntPtr handle = m.LParam;
+
+            //base.WndProc(ref m);
+            //return;
+
+            if (m.Msg == W32.WM_CLIPBOARDUPDATE) // clipboard contents have changed
             {
-                case W32.WM_CLIPBOARDUPDATE:
-                    Tell($"WM_CLIPBOARDUPDATE");
-                    CbDraw(m);
-                    break;
+                // Process the clipboard draw message because contents have changed.
+                // was UpdateClipboard(m);
+                int retries = 5;
+                int ret = 99;
 
-                default:  // Ignore, pass along.
-                    base.WndProc(ref m);
-                    break;
-            }
-        }
+                _logger.Debug($"UpdateClipboard() HWnd:{m.HWnd} Msg:{m.Msg} WParam:{m.WParam} LParam:{m.LParam}");
 
-        /// <summary>
-        /// Process the clipboard draw message because contents have changed.
-        /// </summary>
-        /// <param name="m"></param>
-        /// <returns></returns>
-        int CbDraw(Message m)
-        {
-            int retries = 5;
-            int ret = 99;
-
-            Tell($"MESSAGE === CbDraw() HWnd:{m.HWnd} Msg:{m.Msg} WParam:{m.WParam} LParam:{m.LParam} ");
-
-            while (ret != 0 && retries > 0)
-            {
-                try
+                while (ret != 0 && retries > 0)
                 {
-                    IDataObject? dobj = Clipboard.GetDataObject();
-
-                    // Do something...
-                    if (dobj is not null)
+                    try
                     {
-                        // Info about the originating window.
-                        IntPtr hwnd = WM.ForegroundWindow;
-                        var info = WM.GetAppWindowInfo(hwnd);
-                        var process = Process.GetProcessById(info.Pid);
-                        var procName = process.ProcessName;
-                        var appName = "";
-                        try { appName = Path.GetFileName(process.MainModule!.FileName); }
-                        catch (Exception) { appName = "ERR BLOWED UP!!!!"; }
+                        IDataObject? dobj = Clipboard.GetDataObject();
 
-                        // Determine data type. This is only interested in text and images - all others are passed on to smarter clients.
-                        ClipDisplay? clip = null;
-
-                        if (Clipboard.ContainsText())
+                        if (dobj is not null)
                         {
-                            clip = new()
+                            // Info about the originating window.
+                            //GetProcess("WndProc() FG", WM.ForegroundWindow);
+
+                            IntPtr hwnd = WM.ForegroundWindow;
+                            var info = WM.GetAppWindowInfo(hwnd);
+                            var process = Process.GetProcessById(info.Pid);
+                            var procName = process.ProcessName;
+                            var appName = "";
+                            try { appName = Path.GetFileName(process.MainModule!.FileName); }
+                            catch (Exception) { appName = "ERR TODO BLOWED UP!!!!"; }
+
+                            // Determine data type. This application is only interested in text and images - all others are passed on to smarter clients.
+                            ClipDisplay? clip = null;
+
+                            if (Clipboard.ContainsText())
                             {
-                                ShortText = Clipboard.GetText().Left(80),
-                                Data = Clipboard.GetDataObject()
-                            };
+                                clip = new()
+                                {
+                                    ShortText = Clipboard.GetText().Left(80),
+                                    Data = Clipboard.GetDataObject()
+                                };
+                            }
+                            else if (Clipboard.ContainsImage())
+                            {
+                                var bmp = Clipboard.GetImage() as Bitmap;
+                                // Bug workaround.
+                                TimeSpan ts = DateTime.Now - _lastBmpTime;
+                                if (((DateTime.Now - _lastBmpTime).TotalMilliseconds > 250) || bmp.Size != _lastBmpSize)
+                                {
+                                    // Not the same so assume valid.
+                                    clip = new() { Data = Clipboard.GetDataObject() };
+                                    // Make a thumbnail scaled to available real estate.
+                                    int tnHeight = clip.Height;
+                                    int tnWidth = clip.Width * clip.Height / bmp.Height;
+                                    clip.Thumbnail = bmp.Resize(tnWidth, tnHeight);
+                                }
+                                //else suspect, wait
+
+                                // Reset state.
+                                _lastBmpTime = DateTime.Now;
+                                _lastBmpSize = bmp.Size;
+                            }
+                            //else Something else, ignore.
+
+                            if (clip != null)
+                            {
+                                clip.Data = Clipboard.GetDataObject();
+                                clip.OriginatingApp = appName ?? "Unknown";
+                                clip.OriginatingTitle = info.Title.ToString();
+
+                                clip.MouseClick += (sender, e) => { ClipClick(sender as ClipDisplay, true, e.Button); };
+                                clip.MouseDoubleClick += (sender, e) => { ClipClick(sender as ClipDisplay, false, e.Button); };
+
+                                _clips.AddFirst(clip);
+                                Controls.Add(clip);
+
+                                // Limit - remove tail(s).
+                                while (_clips.Count > _settings.MaxClips)
+                                {
+                                    var clipx = _clips.Last();
+                                    Controls.Remove(clipx);
+                                    _clips.Remove(clipx);
+                                }
+
+                                // Assign locations.
+                                int xloc = 5;
+                                int yloc = 5;
+                                int yinc = clip.Height + 5;
+
+                                foreach (var cl in _clips)
+                                {
+                                    cl.Location = new Point(xloc, yloc);
+                                    yloc += yinc;
+                                }
+
+                                _logger.Debug($"New clip:{clip}");
+
+                                Invalidate();
+                            }
+
+                            ret = 0;
                         }
-                        else if (Clipboard.ContainsImage())
+                        else
                         {
-                            // There appears to be a windows bug in KB5079473 that causes Prtint Screen to
-                            // generate more than one message. This is a crude way to protect from that until MS fixes the issue.
-                            // https://learn.microsoft.com/en-us/answers/questions/5593390/windows-11-25h2-snipping-tool-print-screen-saves-t
-                            // https://learn.microsoft.com/en-us/answers/questions/5831588/there-are-two-copies-of-the-screenshot-in-the-clip
-
-                            var bmp = Clipboard.GetImage() as Bitmap;
-                            TimeSpan ts = DateTime.Now - _lastBmpTime;
-                            if (((DateTime.Now - _lastBmpTime).TotalMilliseconds > 250) || bmp.Size != _lastBmpSize)
-                            {
-                                // Not the same so assume valid.
-                                clip = new() { Data = Clipboard.GetDataObject() };
-                                // Make a thumbnail scaled to available real estate.
-                                int tnHeight = clip.Height;
-                                int tnWidth = clip.Width * clip.Height / bmp.Height;
-                                clip.Thumbnail = bmp.Resize(tnWidth, tnHeight);
-                            }
-                            //else // suspect, wait
-
-                            // Reset state.
-                            _lastBmpTime = DateTime.Now;
-                            _lastBmpSize = bmp.Size;
+                            _logger.Warn($"WndProc GetDataObject() is null");
+                            retries--;
                         }
-                        //else Something else, don't try to show it.
-
-                        if (clip != null)
-                        {
-                            clip.Data = Clipboard.GetDataObject();
-                            clip.OriginatingApp = appName ?? "Unknown";
-                            clip.OriginatingTitle = info.Title.ToString();
-
-                            clip.MouseClick += (sender, e) => { ClipClick(sender as ClipDisplay, true, e.Button); };
-                            clip.MouseDoubleClick += (sender, e) => { ClipClick(sender as ClipDisplay, false, e.Button); };
-
-                            _clips.AddFirst(clip);
-                            Controls.Add(clip);
-
-                            // Limit - remove tail(s).
-                            while (_clips.Count > MAX_CLIPS)
-                            {
-                                var clipx = _clips.Last();
-                                Controls.Remove(clipx);
-                                _clips.Remove(clipx);
-                            }
-
-                            // Assign locations.
-                            int xloc = 5;
-                            int yloc = 5;
-                            int yinc = clip.Height + 5;
-
-                            foreach (var cl in _clips)
-                            {
-                                cl.Location = new Point(xloc, yloc);
-                                yloc += yinc;
-                            }
-
-                            Tell($"New clip:{clip}");
-
-                            Invalidate();
-                        }
-
-                        ret = 0;
                     }
-                    else
+                    catch (ExternalException ex)
                     {
-                        Tell($"ERR CbDraw GetDataObject() is null");
+                        // Retry: Data could not be retrieved from the Clipboard.
+                        // This typically occurs when the Clipboard is being used by another process.
+                        _logger.Warn($"WndProc WM_DRAWCLIPBOARD ExternalException:{ex}");
                         retries--;
+                        Thread.Sleep(50);
                     }
-                }
-                catch (ExternalException ex)
-                {
-                    // Retry: Data could not be retrieved from the Clipboard.
-                    // This typically occurs when the Clipboard is being used by another process.
-                    Tell($"ERR CbDraw WM_DRAWCLIPBOARD ExternalException:{ex}");
-                    retries--;
-                    Thread.Sleep(50);
-                }
-                catch (Exception ex)
-                {
-                    Tell($"ERR CbDraw WM_DRAWCLIPBOARD Exception:{ex}");
-                    retries = 0;
+                    catch (Exception ex)
+                    {
+                        _logger.Warn($"WndProc WM_DRAWCLIPBOARD Exception:{ex}");
+                        retries = 0;
+                    }
                 }
             }
 
-            return ret;
-        }
-        #endregion
+            else if (m.Msg == W32.WM_HOTKEY_MESSAGE_ID) // Decode key.
+            {
+                Keys key = Keys.None;
+                int mod = (int)((long)m.LParam & 0xFFFF);
+                int num = (int)(m.LParam >> 16);
 
-        #region Paste Functions
+                if (Enum.IsDefined(typeof(Keys), num))
+                {
+                    key = (Keys)Enum.ToObject(typeof(Keys), num);
+                }
+                // else do something?
+
+                _logger.Debug($"WndProc Hotkey key:[{key}] ctrl:[{mod & W32.MOD_CTRL}] alt:[{mod & W32.MOD_ALT}]");
+            }
+            else  // 36  129 130
+            {
+                // Ignore, pass along.  ??
+                base.WndProc(ref m);
+            }
+        }
+
         /// <summary>
-        /// 
+        /// A clip tile was clicked.
         /// </summary>
         /// <param name="clip"></param>
         /// <param name="single"></param>
@@ -305,103 +353,194 @@ namespace WinClip
         {
             if (single)
             {
+                // Push into sys clipboard.
                 Clipboard.SetDataObject(clip.Data);
-                DoPaste();
-                // Push to head of class.
+                
+                // was DoPaste();
+
+                //// TODO get the paste requester -- but the focus is me now! 
+                //IntPtr hwnd = WM.ForegroundWindow;
+                //var info = WM.GetAppWindowInfo(hwnd);
+                ////uint tid = WM.GetWindowThreadProcessId(hwnd, out uint lpdwProcessId);
+                ////var p = Process.GetProcessById((int)lpdwProcessId);
+                //var p = Process.GetProcessById(info.Pid);
+                //Tell($">>>50 hwnd:{hwnd} FileName:{p.MainModule!.FileName} pid:{info.Pid}");// tid:{tid}");
+
+                // This does work. Virtual keycodes from https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
+                W32.InjectKey(W32.VK_CONTROL);
+                W32.InjectKey('v');
+                W32.InjectKey(W32.VK_CONTROL, up:true);
+                W32.InjectKey('v', up: true);
+
+                // Note that this doesn't work, which makes sense.
+                //SendMessage(hwnd, W32.WM_PASTE, IntPtr.Zero, IntPtr.Zero);
+
+                // Push to head of our fifo.
                 _clips.Remove(clip);
                 _clips.AddFirst(clip);
 
                 Invalidate();
             }
-            // else // double
-        }
-
-        /// <summary>
-        /// Send paste to focus window.
-        /// </summary>
-        void DoPaste()
-        {
-            // TODO get the paste requester -- but the focus is me now! 
-            //IntPtr hwnd = WM.ForegroundWindow;
-            //var info = WM.GetAppWindowInfo(hwnd);
-            //uint tid = WM.GetWindowThreadProcessId(hwnd, out uint lpdwProcessId);
-            //var p = Process.GetProcessById((int)lpdwProcessId);
-            //Tell($"FileName:{p.MainModule!.FileName} pid:{ lpdwProcessId} tid:{tid}");
-
-            // This does work. Virtual keycodes from https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
-            W32.InjectKey(W32.VK_CONTROL);
-            W32.InjectKey('v');
-            W32.InjectKey(W32.VK_CONTROL, up:true);
-            W32.InjectKey('v', up: true);
-
-            // Note that this doesn't work, which makes sense.
-            //SendMessage(hwnd, 0x0302, IntPtr.Zero, IntPtr.Zero); // WM_PASTE
+            // else double??
         }
 
         /// <summary>
         /// Low level hook function. Sniffs for magic key.
         /// </summary>
-        /// <param name="code">If less than zero, pass the message to the CallNextHookEx function without further processing.</param>
+        /// <param name="code">Virtual-key code in the range 1 to 254. If less than zero, pass the message to the CallNextHookEx function without further processing.</param>
         /// <param name="wParam">One of the following messages: WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, or WM_SYSKEYUP.</param>
         /// <param name="lParam">Pointer to a KBDLLHOOKSTRUCT structure.</param>
         /// <returns></returns>
         int KeyboardHookProc(int code, int wParam, ref W32.KBDLLHOOKSTRUCT lParam)
         {
-           if (code >= 0)
-           {
-               Keys key = (Keys)lParam.vkCode;
-               // Tell($"KeyboardHookProc code:{code} wParam:{wParam} key:{key} scancode:{lParam.scanCode}");
-               if (code >= 0)
-               {
-                   // Update statuses.
-                   bool pressed = wParam == W32.WM_KEYDOWN || wParam == W32.WM_SYSKEYDOWN;
-                   //bool up = wParam == WM_KEYUP || wParam == WM_SYSKEYUP;
-                   if (key == Keys.LWin || key == Keys.RWin)
-                   {
-                       _winPressed = pressed;
-                   }
-                   if (key == _keyTrigger)
-                   {
-                       _letterPressed = pressed;
-                   }
-                   bool match = _winPressed && _letterPressed;
-                   // Diagnostics.
-                   lblWin.BackColor = _winPressed ? _drawColor : Color.Transparent;
-                   lblLetter.BackColor = _letterPressed ? _drawColor : Color.Transparent;
-                   lblMatch.BackColor = match ? _drawColor : Color.Transparent;
-                   if (match)
-                   {
-                       // show UI;
-                       Visible = true;
-                   }
-               }
-           }
-           return W32.CallNextHookEx(_hhook, code, wParam, ref lParam);
+            bool handled = false;
+
+            if (code >= 0 && code < 255)
+            {
+                //GetProcess("KeyboardHookProc() FG", WM.ForegroundWindow);
+                Keys key = (Keys)lParam.vkCode;
+                _logger.Debug($"KeyboardHookProc() code:{code} wParam:{wParam} key:{key} scanCode:{lParam.scanCode}");
+
+                bool keyDown = wParam == W32.WM_KEYDOWN || wParam == W32.WM_SYSKEYDOWN;
+                bool keyUp = wParam == W32.WM_KEYUP || wParam == W32.WM_SYSKEYUP;
+
+                /// <summary>Key status.</summary>
+                bool letterPressed = (key.ToString() == lblLetter.Text) && keyDown;
+
+                /// <summary>Key status.</summary>
+                bool winPressed = (key == Keys.LWin || key == Keys.RWin) && keyDown;
+
+                bool match = winPressed && letterPressed;
+
+                // Diagnostics.
+                lblWin.BackColor = winPressed ? Color.LimeGreen : Color.Transparent;
+                lblLetter.BackColor = letterPressed ? Color.LimeGreen : Color.Transparent;
+                lblMatch.BackColor = match ? Color.LimeGreen : Color.Transparent;
+
+                //if (match)
+                //{
+                //    // show UI;
+                //    Visible = true;
+                //}
+            }
+
+            if (handled)
+            {
+                // If the hook procedure processed the message, it may return a nonzero value to prevent
+                // the system from passing the message to the rest of the hook chain or the target window procedure.
+                return 1;
+            }
+            else
+            {
+                // Pass along chain.
+                return W32.CallNextHookEx(_hhook, code, wParam, ref lParam);
+            }
         }
         #endregion
 
-        #region Debug
+        #region Settings
         /// <summary>
-        /// Do debug stuff.
+        /// Edit the options in a property grid.
+        /// </summary>
+        void Settings_Click(object? sender, EventArgs e)
+        {
+            var changes = SettingsEditor.Edit(_settings, "User Settings", 450);
+
+            // Detect changes of interest.
+            bool restart = false;
+            // foreach (var (name, cat) in changes)
+            // {
+            //     switch (name)
+            //     {
+            //         case "DrawColor":
+            //         case "SelectedColor":
+            //             restart = true;
+            //             break;
+            //     }
+            // }
+            if (restart)
+            {
+                MessageBox.Show("Restart required for device changes to take effect");
+            }
+
+            UpdateFromSettings();
+
+            _settings.Save();
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        void UpdateFromSettings()
+        {
+            LogManager.MinLevelFile = _settings.FileLogLevel;
+            LogManager.MinLevelNotif = _settings.NotifLogLevel;
+        }
+        #endregion
+
+        #region Private
+        /// <summary>
+        /// 
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        void Debug_Click(object sender, EventArgs e)
+        void LogManager_LogMessage(object? sender, LogMessageEventArgs e)
         {
-            foreach (var clip in _clips)
-            {
-                Tell(clip.ToString());
-            }
+            //this.InvokeIfRequired(_ => Tell(e.Message));
+            this.InvokeIfRequired(_ => tvInfo.Append(e.Message));
         }
 
         /// <summary>
         /// Just for debugging.
         /// </summary>
         /// <param name="msg"></param>
-        void Tell(string msg)
+        void TellX(string msg)
         {
             string s = $"{DateTime.Now:hh\\:mm\\:ss\\.fff} {msg}";
             tvInfo.Append(s);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="hwnd">If 0, my process</param>
+        void GetProcess(string who, IntPtr hwnd = 0)
+        {
+            Process? process = null;
+            if (hwnd > 0)
+            {
+                var info = WM.GetAppWindowInfo(hwnd);
+                process = Process.GetProcessById(info.Pid);
+            }
+            else
+            {
+                process = Process.GetCurrentProcess();
+            }
+
+            if (process is not null)
+            {
+                using ProcessModule? module = process.MainModule;
+                IntPtr hModule = W32.GetModuleHandle(module!.ModuleName!); //XXX  hModule
+
+                var procName = process.ProcessName;
+                var modName = module.ModuleName;
+                var appName = ""; //XXX
+                try { appName = Path.GetFileName(process.MainModule!.FileName); }
+                catch (Exception) { appName = "ERR TODO BLOWED UP!!!!"; }
+
+                _logger.Debug($">>>70 who:[{who}] hwnd:[{hwnd}] module:[{module}] procName:[{procName}] modName:[{modName}] appName:[{appName}] ");
+            }
+        }
+
+        /// <summary>Do debug stuff.</summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        void Debug_Click(object sender, EventArgs e)
+        {
+            foreach (var clip in _clips)
+            {
+                TellX(clip.ToString());
+            }
         }
         #endregion
 

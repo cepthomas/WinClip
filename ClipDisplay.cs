@@ -59,12 +59,6 @@ namespace WinClip
         #region Fields
         /// <summary>Assign ids.</summary>
         static int _nextId = 1;
-
-        /// <summary>Used for unspecified states.</summary>
-        readonly SolidBrush _defaultForeBrush = new(Color.Black);
-
-        /// <summary>Used for unspecified states.</summary>
-        readonly SolidBrush _defaultBackBrush = new(Color.White);
         #endregion
 
         /// <summary>
@@ -84,9 +78,7 @@ namespace WinClip
         {
             if (disposing)
             {
-                _defaultForeBrush.Dispose();
-                _defaultBackBrush.Dispose();
-                // _stateTypes.ForEach(st => { st.Value.ForeBrush.Dispose(); st.Value.BackBrush.Dispose(); });
+
             }
             base.Dispose(disposing);
         }
@@ -97,7 +89,6 @@ namespace WinClip
         /// <param name="pe"></param>
         protected override void OnPaint(PaintEventArgs pe)
         {
-            // Setup.
             pe.Graphics.Clear(BackColor);
 
             switch (DataType)
@@ -105,7 +96,7 @@ namespace WinClip
                 case ClipType.PlainText:
                 case ClipType.RichText:
                     ///SizeF stext = pe.Graphics.MeasureString(ShortText, Font);
-                    pe.Graphics.DrawString(ShortText, Font, _defaultForeBrush, ClientRectangle);
+                    pe.Graphics.DrawString(ShortText, Font, Brushes.Black, ClientRectangle);
                     break;
 
                 case ClipType.Bitmap:
@@ -124,13 +115,13 @@ namespace WinClip
         /// <returns></returns>
         public override string ToString()
         {
-            List<string> ls = [
-                $"Id:[{Id} DataType:[{DataType}]",
-                $"Data:[{Data}] [{Data.GetHashCode()}]",
-                $"From App:[{OriginatingApp}] Title:[{OriginatingTitle}]",
-                "Formats:" ];
+            var fmts = string.Join("|", Data.GetFormats());
 
-            Data.GetFormats().ForEach(s => ls.Add("  " + s));
+            List<string> ls = [
+                $"DataType:[{DataType}] Id:[{Id}]",
+                $"Data:[{Data}] [{Data.GetHashCode()}]",
+                $"Origin App:[{OriginatingApp}] Title:[{OriginatingTitle}]",
+                $"Formats:[{fmts}]" ];
 
             switch (DataType)
             {
@@ -144,20 +135,20 @@ namespace WinClip
 
                 case ClipType.PlainText:
                     var pt = Data.GetData(typeof(string));
-                    ls.Add($"PlainText");
+                    //ls.Add($"PlainText");
                     break;
 
                 case ClipType.RichText:
                     var rt = Data.GetData(typeof(string));
-                    ls.Add($"RichText");
+                    //ls.Add($"RichText");
                     break;
 
                 case ClipType.Empty:
-                    ls.Add($"Empty");
+                    ls.Add($"EMPTY!!!!!!");
                     break;
 
                 default:
-                    ls.Add($"WTF!!!!");
+                    ls.Add($"WTF!!!!!");
                     break;
             }
 

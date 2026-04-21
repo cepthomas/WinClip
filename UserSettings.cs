@@ -13,11 +13,10 @@ namespace WinClip
     [Serializable]
     public sealed class UserSettings : SettingsCore
     {
-        [DisplayName("Allow Device")]
-        [Description("Valid output device.")]
+        [DisplayName("Max Clips")]
+        [Description("Max size of clip cache.")]
         [Browsable(true)]
-        [Editor(typeof(GenericListTypeEditor), typeof(UITypeEditor))]
-        public string OutputDevice { get; set; } = "???";
+        public int MaxClips { get; set; } = 20;
 
         // [DisplayName("Output Device")]
         // [Description("Valid output device.")]
@@ -37,19 +36,19 @@ namespace WinClip
         // [JsonConverter(typeof(JsonColorConverter))]
         // public Color SelectedColor { get; set; } = Color.Blue;
 
-        // [DisplayName("File Log Level")]
-        // [Description("Log level for file write.")]
-        // [Browsable(true)]
-        // [JsonConverter(typeof(JsonStringEnumConverter))]
-        // public LogLevel FileLogLevel { get; set; } = LogLevel.Trace;
+        [DisplayName("File Log Level")]
+        [Description("Log level for file write.")]
+        [Browsable(true)]
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public LogLevel FileLogLevel { get; set; } = LogLevel.Trace;
 
-        // [DisplayName("File Log Level")]
-        // [Description("Log level for UI notification.")]
-        // [Browsable(true)]
-        // [JsonConverter(typeof(JsonStringEnumConverter))]
-        // public LogLevel NotifLogLevel { get; set; } = LogLevel.Debug;
+        [DisplayName("File Log Level")]
+        [Description("Log level for UI notification.")]
+        [Browsable(true)]
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public LogLevel NotifLogLevel { get; set; } = LogLevel.Debug;
 
-        [Browsable(false)]
-        public bool LogMidi { get; set; } = false;
+        //[Browsable(false)]
+        //public bool LogMidi { get; set; } = false;
     }
 }
