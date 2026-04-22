@@ -15,13 +15,10 @@ namespace WinClip
         /// </summary>
         private void InitializeComponent()
         {
-            components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             tvInfo = new Ephemera.NBagOfUis.TextViewer();
-            rtbText = new System.Windows.Forms.RichTextBox();
             btnDebug = new System.Windows.Forms.Button();
             btnClear = new System.Windows.Forms.Button();
-            timer1 = new System.Windows.Forms.Timer(components);
             lblWin = new System.Windows.Forms.Label();
             lblLetter = new System.Windows.Forms.Label();
             lblMatch = new System.Windows.Forms.Label();
@@ -29,6 +26,7 @@ namespace WinClip
             // 
             // tvInfo
             // 
+            tvInfo.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
             tvInfo.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             tvInfo.Location = new System.Drawing.Point(282, 147);
             tvInfo.MatchUseBackground = true;
@@ -38,15 +36,6 @@ namespace WinClip
             tvInfo.Size = new System.Drawing.Size(511, 420);
             tvInfo.TabIndex = 0;
             tvInfo.WordWrap = true;
-            // 
-            // rtbText
-            // 
-            rtbText.BorderStyle = System.Windows.Forms.BorderStyle.None;
-            rtbText.Location = new System.Drawing.Point(381, 8);
-            rtbText.Name = "rtbText";
-            rtbText.Size = new System.Drawing.Size(411, 133);
-            rtbText.TabIndex = 1;
-            rtbText.Text = "";
             // 
             // btnDebug
             // 
@@ -66,10 +55,6 @@ namespace WinClip
             btnClear.TabIndex = 3;
             btnClear.Text = "Clear";
             btnClear.UseVisualStyleBackColor = true;
-            // 
-            // timer1
-            // 
-            timer1.Interval = 1000;
             // 
             // lblWin
             // 
@@ -106,21 +91,19 @@ namespace WinClip
             Controls.Add(lblWin);
             Controls.Add(btnClear);
             Controls.Add(btnDebug);
-            Controls.Add(rtbText);
             Controls.Add(tvInfo);
             FormBorderStyle = System.Windows.Forms.FormBorderStyle.SizableToolWindow;
             Icon = (System.Drawing.Icon)resources.GetObject("$this.Icon");
             Name = "MainForm";
+            StartPosition = System.Windows.Forms.FormStartPosition.Manual;
             Text = "Hoo Haa";
             ResumeLayout(false);
         }
         #endregion
 
         private Ephemera.NBagOfUis.TextViewer tvInfo;
-        private System.Windows.Forms.RichTextBox rtbText;
         private System.Windows.Forms.Button btnDebug;
         private System.Windows.Forms.Button btnClear;
-        private System.Windows.Forms.Timer timer1;
         private System.Windows.Forms.Label lblWin;
         private System.Windows.Forms.Label lblLetter;
         private System.Windows.Forms.Label lblMatch;

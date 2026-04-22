@@ -6,15 +6,16 @@ using System.Windows.Forms;
 
 namespace WinClip
 {
-    /// <summary>Framework for running as a tray app.</summary>
     static class Program
     {
-        /// <summary>The main entry point for the application. </summary>
+        /// <summary>Entry.</summary>
         [STAThread]
         static void Main()
         {
-            Application.ThreadException += Application_ThreadException;
+            // Handle unexpected esceptions.
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+            Application.ThreadException += (sender, e) => { HandleException(e.Exception, "UI Thread Exception"); };
+            AppDomain.CurrentDomain.UnhandledException += (sender, e) => { HandleException((Exception)e.ExceptionObject, "Background Thread Exception"); };
 
             Application.SetHighDpiMode(HighDpiMode.SystemAware);
             Application.EnableVisualStyles();
@@ -22,9 +23,10 @@ namespace WinClip
             Application.Run(new MainForm());
         }
 
-        private static void Application_ThreadException(object sender, System.Threading.ThreadExceptionEventArgs e)
+        static void HandleException(Exception ex, string type) 
         {
-            throw new NotImplementedException();
+            MessageBox.Show(ex.ToString(), type);
+            Environment.Exit(1);
         }
     }
 }

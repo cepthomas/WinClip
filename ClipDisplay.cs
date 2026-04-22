@@ -17,8 +17,13 @@ namespace WinClip
     /// <summary>
     /// One selectable clip item.
     /// </summary>
-    public partial class ClipDisplay : UserControl
+    public class ClipDisplay : UserControl
     {
+        #region Types
+        /// <summary>For internal management.</summary>
+        public enum ClipType { Empty, PlainText, RichText, Bitmap, Other };
+        #endregion
+
         #region Properties
         /// <summary>For owner use.</summary>
         public int Id { get; set; } = -1;
@@ -95,7 +100,6 @@ namespace WinClip
             {
                 case ClipType.PlainText:
                 case ClipType.RichText:
-                    ///SizeF stext = pe.Graphics.MeasureString(ShortText, Font);
                     pe.Graphics.DrawString(ShortText, Font, Brushes.Black, ClientRectangle);
                     break;
 
@@ -110,18 +114,19 @@ namespace WinClip
         }
 
         /// <summary>
-        /// Readable contents.
+        /// Readable contents with detail.
         /// </summary>
         /// <returns></returns>
-        public override string ToString()
+        public string Format()
         {
-            var fmts = string.Join("|", Data.GetFormats());
+            var dfmts = string.Join("|", Data.GetFormats());
 
             List<string> ls = [
-                $"DataType:[{DataType}] Id:[{Id}]",
+                $"Clip {Id}",
+                $"DataType:[{DataType}]",
                 $"Data:[{Data}] [{Data.GetHashCode()}]",
                 $"Origin App:[{OriginatingApp}] Title:[{OriginatingTitle}]",
-                $"Formats:[{fmts}]" ];
+                $"Formats:[{dfmts}]" ];
 
             switch (DataType)
             {
@@ -135,12 +140,10 @@ namespace WinClip
 
                 case ClipType.PlainText:
                     var pt = Data.GetData(typeof(string));
-                    //ls.Add($"PlainText");
                     break;
 
                 case ClipType.RichText:
                     var rt = Data.GetData(typeof(string));
-                    //ls.Add($"RichText");
                     break;
 
                 case ClipType.Empty:
@@ -152,33 +155,44 @@ namespace WinClip
                     break;
             }
 
-            return string.Join(Environment.NewLine, ls);
+            return string.Join(Environment.NewLine + "  ", ls);
         }
 
-        ///// <summary>
-        ///// Text specific setup.
-        ///// </summary>
-        ///// <param name="ctype"></param>
-        ///// <param name="text"></param>
-        //public void SetText(ClipType ctype, string text)
-        //{
-        //    const int PEEK_SIZE = 1000;
-        //    const int NUM_LINES = 4; // size to fit control
+        /// <summary>
+        /// Readable contents.
+        /// </summary>
+        /// <returns></returns>
+        public override string ToString()
+        {
+            var sid = $"Clip {Id}";
+            string sdet;
 
-        //    // Show just a part with leading ws removed.
-        //    bool more = text.Length > PEEK_SIZE;
-        //    var s = text.Left(PEEK_SIZE);
-        //    var ls = s.SplitByTokens("\r\n");
-        //    more |= ls.Count > NUM_LINES;
-        //    StringBuilder sb = new();
-        //    for (int i = 0; i < Math.Min(ls.Count, more ? NUM_LINES-1 : NUM_LINES); i++)
-        //    {
-        //        sb.AppendLine(ls[i]);
-        //    }
-        //    if (more)
-        //    {
-        //        sb.AppendLine("...");
-        //    }
-        //}
+            switch (DataType)
+            {
+                case ClipType.Bitmap:
+                    var bmp = (Bitmap)Data.GetData(typeof(Bitmap));
+                    if (bmp is null) { sdet = $"Bitmap IS NULL!!!!!"; }
+                    else { sdet = $"Bitmap W:{bmp.Width} H:{bmp.Height}"; }
+                    break;
+
+                case ClipType.PlainText:
+                    sdet = $"PlainText";
+                    break;
+
+                case ClipType.RichText:
+                    sdet = $"RichText";
+                    break;
+
+                case ClipType.Empty:
+                    sdet = "EMPTY!!!!!!";
+                    break;
+
+                default:
+                    sdet = "WTF???";
+                    break;
+            }
+
+            return $"{sid} {sdet}";
+        }
     }
 }
