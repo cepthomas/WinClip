@@ -24,7 +24,10 @@ namespace WinClip
     public partial class MainForm : Form
     {
         #region Types
-        record struct WindowInfo(IntPtr hwnd, string ProcessName, string AppName, string Title);
+        record struct WindowInfo(IntPtr hwnd, string ProcessName, string AppName, string Title)
+        {
+            public override readonly string ToString() { return $"hwnd:{hwnd} process:{ProcessName} app:{AppName} title:{Title}"; }
+        }
         // record struct WindowInfo(IntPtr hwnd = IntPtr.Zero, string ProcessName = "???", string AppName = "???", string Title = "???");
         #endregion
 
@@ -76,16 +79,12 @@ namespace WinClip
             LogManager.Run(logFileName, 100000);
             UpdateFromSettings();
 
-            ///// Main form. TODO? init, show/hide/minimize....
-            Location = _settings.FormGeometry.Location;
-            Size = _settings.FormGeometry.Size;
-            //WindowState = FormWindowState.Normal;
-            Visible = false; // doesn't work - like C:\Dev\Misc\NLab\TrayExForm - use Minimized?
-            // Clean me up.
-            //var borderWidth = (Width - ClientSize.Width) / 2;
-            //Width = x + borderWidth * 2;
-            //Height = y + borderWidth * 2 + 55;
-            //Width = _clips.First.Value.Width + borderWidth * 2 + 10;
+            ///// Main form init.
+            ShowInTaskbar = true;// false;
+//            WindowState = FormWindowState.Minimized;
+//            Location = _settings.FormGeometry.Location;
+//            Size = _settings.FormGeometry.Size;
+            //Visible = false; // doesn't work - like C:\Dev\Misc\NLab\TrayExForm - use Minimized?
 
             ///// Init controls.
             tvInfo.BackColor = Color.Cornsilk;
@@ -96,7 +95,7 @@ namespace WinClip
             ];
             btnClear.Click += (_, __) => tvInfo.Clear();
 
-            lblLetter.Text = "Z";
+            lblLetter.Text = _settings.HotKey.Key;
 
             ///// System hooks.
             // LL keyboard hook.
@@ -115,7 +114,7 @@ namespace WinClip
 
             // Listen for hot keys.
             var hk = _settings.HotKey;
-            var key = hk.Key & ~0x20; // make it UC   // high-order word
+            var key = hk.Key[0] & ~0x20; // make it UC   // high-order word
             var mod = (hk.Ctrl ? W32.MOD_CTRL : 0) |  // low-order word
                 (hk.Alt ? W32.MOD_ALT : 0) |
                 (hk.Shift ? W32.MOD_SHIFT : 0) |
@@ -124,15 +123,6 @@ namespace WinClip
 
             //var wi = GetWindowInfo(Handle);
             //_logger.Debug($"Myself init ProcessInfo::: {wi}");
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="e"></param>
-        protected override void OnLoad(EventArgs e)
-        {
-            base.OnLoad(e);
         }
 
         /// <summary>
@@ -179,6 +169,10 @@ namespace WinClip
             base.Dispose(disposing);
         }
         #endregion
+        
+        
+IntPtr fg;
+
 
         #region Message Processing
         /// <summary>
@@ -297,7 +291,14 @@ namespace WinClip
             {
                 // Could decode if we needed to handle more than one.
 
+                // Get current window.
+                fg = WM.ForegroundWindow;
+                var fgi = GetWindowInfo(fg);
+                tvInfo.Append($">>>{fg}");
+
                 // TODO Show UI to let user pick a clip to paste.
+                WindowState = FormWindowState.Normal;
+
 
                 m.Result = -1; // means handled?
             }
@@ -322,22 +323,25 @@ namespace WinClip
                 Clipboard.SetDataObject(clip.Data);
 
                 // Send to the last window that was foreground, since this is now fg. 
-                W32.SendMessage(_previousWin, W32.WM_PASTE, IntPtr.Zero, IntPtr.Zero);
+                //W32.SendMessage(fg, W32.WM_PASTE, IntPtr.Zero, IntPtr.Zero);
+                // This does work. Virtual keycodes from https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
+                W32.InjectKey(W32.VK_CONTROL);
+                W32.InjectKey('v');
+                W32.InjectKey(W32.VK_CONTROL, up: true);
+                W32.InjectKey('v', up: true);
 
                 // Push to head of our fifo.
                 _clips.Remove(clip);
                 _clips.AddFirst(clip);
 
                 // Restore last window to fg.
-                WM.ForegroundWindow = _previousWin;
+//WM.ForegroundWindow = fg; // _previousWin;
+//WindowState = FormWindowState.Minimized;
+
+
 
                 Invalidate();
 
-                // This does work. Virtual keycodes from https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
-                // W32.InjectKey(W32.VK_CONTROL);
-                // W32.InjectKey('v');
-                // W32.InjectKey(W32.VK_CONTROL, up:true);
-                // W32.InjectKey('v', up: true);
             }
             // else double??
         }
@@ -436,11 +440,9 @@ namespace WinClip
                 _currentWin = hwnd;
             }
 
-            txtCurrentWin.Text = GetWindowInfo(_currentWin).ToString();
-            txtPreviousWin.Text = GetWindowInfo(_previousWin).ToString();
-
-            // _logger.Debug($"Current Win::: {GetWindowInfo(_currentWin)}");
-            // _logger.Debug($"Previous Win::: {GetWindowInfo(_previousWin)}");
+            //tvInfo.Append($"FG:{GetWindowInfo(hwnd)}");
+            //txtCurrentWin.Text = GetWindowInfo(_currentWin).ToString();
+            //txtPreviousWin.Text = GetWindowInfo(_previousWin).ToString();
         }
         #endregion
 
@@ -514,7 +516,7 @@ namespace WinClip
                         var modName = module.ModuleName;
                         var appName = "???";
 
-                        appName = Path.GetFileName(process.MainModule!.FileName);
+                        appName = Path.GetFileName(module!.FileName);
                         wi = new(hwnd, procName, appName, title);
                         retries = 0; // done
                     }

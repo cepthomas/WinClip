@@ -63,7 +63,7 @@ namespace WinClip
         //[DisplayName("Max Clips")]
         //[Description("Max size of clip cache.")]
         //[Browsable(true)]
-        public char Key { get; set; } = 'V';
+        public string Key { get; set; } = "?";
         public bool Ctrl { get; set; } = false;
         public bool Alt { get; set; } = false;
         public bool Shift { get; set; } = false;
