@@ -61,9 +61,16 @@ namespace WinClip
         public string OriginatingTitle { get; set; } = "Unknown";
         #endregion
 
+
+        public static int Height { get; set; } = 50;
+        public static int Width { get; set; } = 200;
+        public enum SelectorStyle { Tile, Icon }
+
+
         #region Fields
         /// <summary>Assign ids.</summary>
         static int _nextId = 1;
+
         #endregion
 
         /// <summary>
@@ -71,21 +78,9 @@ namespace WinClip
         /// </summary>
         public ClipDisplay()
         {
-            Size = new Size(200, 50);
+            Size = new Size(Width, Height);
             BorderStyle = BorderStyle.FixedSingle;
             Id = _nextId++;
-        }
-
-        /// <summary>
-        /// Clean up any resources being used.
-        /// </summary>
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-
-            }
-            base.Dispose(disposing);
         }
 
         /// <summary>

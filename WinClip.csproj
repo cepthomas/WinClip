@@ -31,6 +31,7 @@
 
     <ItemGroup>
       <Compile Remove="MainForm2.cs" />
+      <Compile Remove="MainForm_1.cs" />
       <Compile Remove="MainForm_orig.cs" />
     </ItemGroup>
 

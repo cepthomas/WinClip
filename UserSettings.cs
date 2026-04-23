@@ -6,6 +6,7 @@ using System.Drawing.Design;
 using System.Text.Json.Serialization;
 using Ephemera.NBagOfTricks;
 using Ephemera.NBagOfUis;
+using System.Windows.Forms;
 
 
 namespace WinClip
@@ -13,10 +14,14 @@ namespace WinClip
     [Serializable]
     public sealed class UserSettings : SettingsCore
     {
+        [TypeConverter(typeof(ExpandableObjectConverter))]
+        public HotKey HotKey { get; set; } = new();
+
         [DisplayName("Max Clips")]
         [Description("Max size of clip cache.")]
         [Browsable(true)]
         public int MaxClips { get; set; } = 20;
+
 
         // [DisplayName("Output Device")]
         // [Description("Valid output device.")]
@@ -50,5 +55,18 @@ namespace WinClip
 
         //[Browsable(false)]
         //public bool LogMidi { get; set; } = false;
+    }
+
+    [Serializable]
+    public sealed class HotKey
+    {
+        //[DisplayName("Max Clips")]
+        //[Description("Max size of clip cache.")]
+        //[Browsable(true)]
+        public char Key { get; set; } = 'V';
+        public bool Ctrl { get; set; } = false;
+        public bool Alt { get; set; } = false;
+        public bool Shift { get; set; } = false;
+        public bool Win { get; set; } = false;
     }
 }

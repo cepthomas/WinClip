@@ -23,7 +23,10 @@ namespace WinClip
     /// </summary>
     public partial class MainForm : Form
     {
+        #region Types
         record struct WindowInfo(IntPtr hwnd, string ProcessName, string AppName, string Title);
+        // record struct WindowInfo(IntPtr hwnd = IntPtr.Zero, string ProcessName = "???", string AppName = "???", string Title = "???");
+        #endregion
 
         #region Fields
         /// <summary>App logger.</summary>
@@ -36,10 +39,10 @@ namespace WinClip
         readonly LinkedList<ClipDisplay> _clips = new();
 
         /// <summary>Current foreground window handle.</summary>
-        readonly IntPtr _currentWin = IntPtr.Zero;
+        IntPtr _currentWin = IntPtr.Zero;
 
         /// <summary>Previous foreground window handle.</summary>
-        readonly IntPtr _previousWin = IntPtr.Zero;
+        IntPtr _previousWin = IntPtr.Zero;
 
         /// <summary>Handle to the LL hook.</summary>
         readonly IntPtr _hHook = IntPtr.Zero;
@@ -50,9 +53,10 @@ namespace WinClip
         /// <summary>Manage resources.</summary>
         bool _disposed;
 
-        // Hacks to work around win11 bug.
+        #region Hacks to work around win11 bug
         Size _lastBmpSize = new();
         DateTime _lastBmpTime = DateTime.Now;
+        #endregion
         #endregion
 
         #region Lifecycle
@@ -108,13 +112,18 @@ namespace WinClip
             // Listen for clipboard changes.
             var res = AddClipboardFormatListener(Handle);
             //? if (!res) throw new InvalidOperationException("!!!!!!!!!!");
-3
-            // Listen for hot keys. TODO from settings
-            W32.RegisterHotKey(Handle, (int)Keys.A, W32.MOD_ALT | W32.MOD_CTRL);
-            W32.RegisterHotKey(Handle, (int)Keys.D9, W32.MOD_CTRL);
 
-            var wi = GetWindowInfo(Handle);
-            _logger.Debug($"Myself init ProcessInfo::: {wi}");
+            // Listen for hot keys.
+            var hk = _settings.HotKey;
+            var key = hk.Key & ~0x20; // make it UC   // high-order word
+            var mod = (hk.Ctrl ? W32.MOD_CTRL : 0) |  // low-order word
+                (hk.Alt ? W32.MOD_ALT : 0) |
+                (hk.Shift ? W32.MOD_SHIFT : 0) |
+                (hk.Win ? W32.MOD_WIN : 0);
+            W32.RegisterHotKey(Handle, key, mod);
+
+            //var wi = GetWindowInfo(Handle);
+            //_logger.Debug($"Myself init ProcessInfo::: {wi}");
         }
 
         /// <summary>
@@ -178,11 +187,12 @@ namespace WinClip
         /// <param name="m"></param>
         protected override void WndProc(ref Message m)
         {
-            // m.HWnd  A handle to the window whose window procedure receives the message
+            // m.HWnd  A handle to the window whose window procedure receives the message - not sender
             // This member is NULL when the message is a thread message.
 
             if (m.Msg == W32.WM_CLIPBOARDUPDATE) // clipboard contents have changed
             {
+                // It's possible to have contention for the clipboard so retry is ok.
                 int retries = 5;
 
                 //_logger.Debug($"UpdateClipboard() HWnd:0X{m.HWnd:X8} Msg:{m.Msg} WParam:{m.WParam} LParam:{m.LParam}");
@@ -221,8 +231,8 @@ namespace WinClip
                                     // Not the same so assume valid.
                                     clip = new() { Data = Clipboard.GetDataObject() };
                                     // Make a thumbnail scaled to available real estate.
-                                    int tnHeight = clip.Height;
-                                    int tnWidth = clip.Width * clip.Height / bmp.Height;
+                                    int tnHeight = ClipDisplay.Height;
+                                    int tnWidth = ClipDisplay.Width * ClipDisplay.Height / bmp.Height;
                                     clip.Thumbnail = bmp.Resize(tnWidth, tnHeight);
                                 }
                                 //else suspect, wait
@@ -236,8 +246,8 @@ namespace WinClip
                             if (clip != null)
                             {
                                 clip.Data = Clipboard.GetDataObject();
-                                clip.OriginatingApp = appName ?? "Unknown";
-                                clip.OriginatingTitle = info.Title.ToString();
+//                                clip.OriginatingApp = appName ?? "Unknown";
+//                                clip.OriginatingTitle = info.Title.ToString();
 
                                 clip.MouseClick += (sender, e) => { ClipClick(sender as ClipDisplay, true, e.Button); };
                                 clip.MouseDoubleClick += (sender, e) => { ClipClick(sender as ClipDisplay, false, e.Button); };
@@ -258,7 +268,7 @@ namespace WinClip
                                 Invalidate();
                             }
 
-                            ret = 0;
+                            retries = 0; // done
                         }
                         else
                         {
@@ -280,20 +290,16 @@ namespace WinClip
                         retries = 0;
                     }
                 }
+
+                m.Result = -1; // means handled?
             }
-            else if (m.Msg == W32.WM_HOTKEY_MESSAGE_ID) // Decode key.
+            else if (m.Msg == W32.WM_HOTKEY_MESSAGE_ID)
             {
-                Keys key = Keys.None;
-                int mod = (int)((long)m.LParam & 0xFFFF);
-                int num = (int)(m.LParam >> 16);
+                // Could decode if we needed to handle more than one.
 
-                if (Enum.IsDefined(typeof(Keys), num))
-                {
-                    key = (Keys)Enum.ToObject(typeof(Keys), num);
-                }
-                // else do something?
+                // TODO Show UI to let user pick a clip to paste.
 
-                _logger.Debug($"WndProc Hotkey key:[{key}] ctrl:[{mod & W32.MOD_CTRL}] alt:[{mod & W32.MOD_ALT}]");
+                m.Result = -1; // means handled?
             }
             else
             {
@@ -316,31 +322,22 @@ namespace WinClip
                 Clipboard.SetDataObject(clip.Data);
 
                 // Send to the last window that was foreground, since this is now fg. 
-                SendMessage(_previousWin, W32.WM_PASTE, IntPtr.Zero, IntPtr.Zero);
+                W32.SendMessage(_previousWin, W32.WM_PASTE, IntPtr.Zero, IntPtr.Zero);
 
                 // Push to head of our fifo.
                 _clips.Remove(clip);
                 _clips.AddFirst(clip);
 
+                // Restore last window to fg.
+                WM.ForegroundWindow = _previousWin;
+
                 Invalidate();
 
-                // was DoPaste();
-                ////  get the paste requester -- but the focus is me now! 
-                //IntPtr hwnd = WM.ForegroundWindow;
-                //var info = WM.GetAppWindowInfo(hwnd);
-                ////uint tid = WM.GetWindowThreadProcessId(hwnd, out uint lpdwProcessId);
-                ////var p = Process.GetProcessById((int)lpdwProcessId);
-                //var p = Process.GetProcessById(info.Pid);
-                //Tell($">>>50 hwnd:{hwnd} FileName:{p.MainModule!.FileName} pid:{info.Pid}");// tid:{tid}");
-
-                // // This does work. Virtual keycodes from https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
+                // This does work. Virtual keycodes from https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
                 // W32.InjectKey(W32.VK_CONTROL);
                 // W32.InjectKey('v');
                 // W32.InjectKey(W32.VK_CONTROL, up:true);
                 // W32.InjectKey('v', up: true);
-
-                // Note that this doesn't work, which makes sense.
-                //SendMessage(hwnd, W32.WM_PASTE, IntPtr.Zero, IntPtr.Zero);
             }
             // else double??
         }
@@ -353,16 +350,18 @@ namespace WinClip
         /// <param name="e">The particular PaintEventArgs.</param>
         protected override void OnPaint(PaintEventArgs e)
         {
-            // Assign locations in order.
+            // Assign ordered locations.
             int xloc = 5;
             int yloc = 5;
-            int yinc = clip.Height + 5;
+            int yinc = ClipDisplay.Height + 5;
 
             foreach (var cl in _clips)
             {
                 cl.Location = new Point(xloc, yloc);
                 yloc += yinc;
             }
+
+            base.OnPaint(e);
         }
         #endregion
 
@@ -373,31 +372,44 @@ namespace WinClip
         /// <param name="code">Virtual-key code in the range 1 to 254. If less than zero, pass the message to the CallNextHookEx function without further processing.</param>
         /// <param name="wParam">One of the following messages: WM_KEYDOWN WM_KEYUP WM_SYSKEYDOWN WM_SYSKEYUP.</param>
         /// <param name="lParam">Pointer to a KBDLLHOOKSTRUCT structure.</param>
-        /// <returns></returns>
+        /// <returns>Return value from call to next in chain or >0 for handled locally</returns>
         int KeyboardHookProc(int code, int wParam, ref W32.KBDLLHOOKSTRUCT lParam) // TODO is this useful now? put in NDev if not.
         {
             bool handled = false;
 
-            if (code >= 0 && code < 255)
+            if (code >= 0)// && code < 255)
             {
                 Keys key = (Keys)lParam.vkCode;
+
+                //lParam.scanCode
 
                 bool keyDown = wParam == W32.WM_KEYDOWN || wParam == W32.WM_SYSKEYDOWN;
                 bool keyUp = wParam == W32.WM_KEYUP || wParam == W32.WM_SYSKEYUP;
                 bool letterPressed = (key.ToString() == lblLetter.Text) && keyDown;
-                bool winPressed = (key == Keys.LWin || key == Keys.RWin) && keyDown;
+                bool winKey = (key == Keys.LWin || key == Keys.RWin) && keyDown;
+                bool ctrlKey = (key & Keys.Control) > 0 && keyDown;
+                bool altKey = (key & Keys.Alt) > 0 && keyDown;
 
-                if (keyDown)
-                {
-                    //var sinfo = GetWindowInfo(WM.ForegroundWindow);
-                    //_logger.Debug("KeyboardHookProc ProcessInfo::: " + sinfo);
-                    //_logger.Debug($"KeyboardHookProc key:{key} scanCode:{lParam.scanCode} FG:[0X{WM.ForegroundWindow:X8}]");
-                }
+                //vkCode: Check if this member equals VK_CONTROL(
+                //), VK_LCONTROL(
+                //), or VK_RCONTROL(
+                //).
+                //flags: Indicates if the key is pressed(
+                //) or released(
+                //).
+
+                //var  cc = W32.VK_CONTROL;
+                //if (lParam.vkCode == 'Z' && (GetKeyState(VK_CONTROL) < 0))
+                //{
+                //    // Ctrl+Z pressed
+                //    return 1; // Block it
+                //}
 
                 // Diagnostics.
-                lblWin.BackColor = winPressed ? Color.LimeGreen : Color.Transparent;
-                lblLetter.BackColor = letterPressed ? Color.LimeGreen : Color.Transparent;
-                //lblMatch.BackColor = match ? Color.LimeGreen : Color.Transparent;
+                lblCtrl.BackColor = ctrlKey ? Color.LimeGreen : SystemColors.Control;
+                lblAlt.BackColor = altKey ? Color.LimeGreen : SystemColors.Control;
+                lblWin.BackColor = winKey ? Color.LimeGreen : SystemColors.Control;
+                lblLetter.BackColor = letterPressed ? Color.LimeGreen : SystemColors.Control;
             }
 
             if (handled)
@@ -423,6 +435,9 @@ namespace WinClip
                 _previousWin = _currentWin;
                 _currentWin = hwnd;
             }
+
+            txtCurrentWin.Text = GetWindowInfo(_currentWin).ToString();
+            txtPreviousWin.Text = GetWindowInfo(_previousWin).ToString();
 
             // _logger.Debug($"Current Win::: {GetWindowInfo(_currentWin)}");
             // _logger.Debug($"Previous Win::: {GetWindowInfo(_previousWin)}");
@@ -468,46 +483,56 @@ namespace WinClip
         /// <param name="e"></param>
         void LogManager_LogMessage(object? sender, LogMessageEventArgs e)
         {
-            //this.InvokeIfRequired(_ => Tell(e.Message));
             this.InvokeIfRequired(_ => tvInfo.Append(e.Message));
         }
 
         /// <summary>
-        /// Get pertinent bits of info for a window.
+        /// Get pertinent bits of info for a window. TODO put in common?
         /// </summary>
         /// <param name="hwnd">If 0, my process</param>
-        WindowInfo GetWindowInfo(IntPtr hwnd = 0)
+        WindowInfo? GetWindowInfo(IntPtr hwnd = 0)
         {
             Process? process = null;
-            WindowInfo wi;
+            WindowInfo? wi = null;
 
             var info = WM.GetAppWindowInfo(hwnd);
-            process = Process.GetProcessById(info.Pid);
-
-            // if (hwnd > 0)
-            // {
-            //     var info = WM.GetAppWindowInfo(hwnd);
-            //     process = Process.GetProcessById(info.Pid);
-            // }
-            // else
-            // {
-            //     process = Process.GetCurrentProcess();
-            // }
+            process = hwnd == 0 ? Process.GetCurrentProcess() : Process.GetProcessById(info.Pid);
 
             if (process is not null)
             {
-                using ProcessModule? module = process.MainModule;
-                IntPtr hModule = W32.GetModuleHandle(module!.ModuleName!);
+                // https://stackoverflow.com/questions/9501771/how-to-avoid-a-win32-exception-when-accessing-process-mainmodule-filename-in-c                // It's possible to have contention for the clipboard so retry is ok.
+                int retries = 5;
 
-                var info = WM.GetAppWindowInfo(hwnd);
-                var title = info.Title;
-                var procName = process.ProcessName;
-                var modName = module.ModuleName;
-                var appName = "";
-                try { appName = Path.GetFileName(process.MainModule!.FileName); } // TODO does this happen?
-                catch (Exception) { appName = "ERR BLOWED UP!!!!"; }
+                while (retries > 0)
+                {
+                    try
+                    {
+                        using ProcessModule? module = process.MainModule;
+                        IntPtr hModule = W32.GetModuleHandle(module!.ModuleName!);
+                        var title = info.Title;
+                        var procName = process.ProcessName;
+                        var modName = module.ModuleName;
+                        var appName = "???";
 
-                wi = new(hwnd, procName, appName, title);
+                        appName = Path.GetFileName(process.MainModule!.FileName);
+                        wi = new(hwnd, procName, appName, title);
+                        retries = 0; // done
+                    }
+                    catch (Win32Exception ex)
+                    {
+                        retries--;
+
+                        if (retries > 0)
+                        {
+                            Thread.Sleep(50);
+                        }
+                        else
+                        {
+                            // Hard fail.
+                            throw new InvalidOperationException("process.MainModule.FileName failed");
+                        }
+                    }
+                }
             }
 
             return wi;
