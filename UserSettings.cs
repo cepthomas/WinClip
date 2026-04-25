@@ -15,7 +15,7 @@ namespace WinClip
     public sealed class UserSettings : SettingsCore
     {
         [TypeConverter(typeof(ExpandableObjectConverter))]
-        public HotKey HotKey { get; set; } = new();
+        public HotKey HotKey { get; set; } = new(); // TODO
 
         [DisplayName("Max Clips")]
         [Description("Max size of clip cache.")]

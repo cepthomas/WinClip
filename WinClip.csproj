@@ -33,6 +33,7 @@
       <Compile Remove="MainForm2.cs" />
       <Compile Remove="MainForm_1.cs" />
       <Compile Remove="MainForm_orig.cs" />
+      <Compile Remove="_temp.cs" />
     </ItemGroup>
 
     <ItemGroup>

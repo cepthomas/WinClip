@@ -19,3 +19,14 @@ Defaults:
 - MagicKey
     - make app window visible
     - clip.click => paste selection to last fg window
+
+
+# stuff
+
+How to Handle Multiple Notifications:
+
+    Debouncing/Debounce/Throttling: Implement a timer (e.g., 50-100ms) to wait for the clipboard to "settle" before processing the data, ensuring you react only to the final change.
+    Check Sequence Numbers: Use GetClipboardSequenceNumber to determine if the actual content has changed, rather than relying on the message itself.
+
+The usual mitigation strategy is to avoid reacting to every update, and react to the LAST update after a reasonable "settle time" has elapsed with no further clipboard notifications. 500ms will usually be more than adequate.
+

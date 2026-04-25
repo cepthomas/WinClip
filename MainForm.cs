@@ -59,16 +59,12 @@ namespace WinClip
         int _clipHeight = 50;
         int _clipWidth = 200;
         IntPtr _fg;
-        bool _suppress = false;
+        bool _suppressClipboardUpdate = false;
         //public static int Height { get; set; } = 50;
         //public static int Width { get; set; } = 200;
         //public enum SelectorStyle { Tile, Icon }
 
 
-        #region Hacks to work around win11 bug
-        Size _lastBmpSize = new();
-        DateTime _lastBmpTime = DateTime.Now;
-        #endregion
         #endregion
 
         #region Lifecycle
@@ -140,16 +136,13 @@ namespace WinClip
             // Debug stuff
             for (int i = 0; i < 4; i++)
             {
-                var s = $"TEST{i}";
-
-                //IDataObject data = new(s);
-                //DataObject myDataObject = new DataObject(s);
-                //myDataObject.SetData(s);
-
+                var s = $"TEST_{i}";
                 ClipDisplay clip = new()
                 {
                     ShortText = s,
-                    Data = new DataObject(s)
+                    Data = new DataObject(s),
+                    Width = _clipWidth,
+                    Height = _clipHeight,
                 };
                 clip.MouseClick += (sender, e) => { ClipClick(sender as ClipDisplay, true, e.Button); };
                 clip.MouseDoubleClick += (sender, e) => { ClipClick(sender as ClipDisplay, false, e.Button); };
@@ -203,7 +196,22 @@ namespace WinClip
             base.Dispose(disposing);
         }
         #endregion
-        
+
+
+        #region Hacks to work around win11 bug
+        Size _lastBmpSize = new();
+        DateTime _lastBmpTime = DateTime.Now;
+        #endregion
+
+
+        //DateTime _lastUpdateTime = DateTime.Now;
+
+        //string _timeFormat = "yyyy'-'MM'-'dd HH':'mm':'ss.fff";
+        string _timeFormat = "HH':'mm':'ss.fff";
+
+
+
+
         /// <summary>
         /// Handle window messages.
         /// </summary>
@@ -216,11 +224,21 @@ namespace WinClip
             switch (msg.Msg)
             {
                 case W32.WM_CLIPBOARDUPDATE: // clipboard contents have changed
-                    if (!_suppress) // one shot
+
+                    // Multiple? wait...
+                    //Thread.Sleep(100);
+
+                    //_logger.Debug($"WM_CLIPBOARDUPDATE suppress:{_suppressClipboardUpdate}");
+
+
+                    //if (!_suppressClipboardUpdate) // one shot
                     {
                         DoClipboardUpdate(msg);
                     }
-                    _suppress = false;
+                    // reset
+                    _suppressClipboardUpdate = false;
+
+                    msg.Result = -1; // means handled?
 
                     break;
 
@@ -235,23 +253,53 @@ namespace WinClip
             }
         }
 
+
+
+        int _lastSeq = -1;
+
+
         /// <summary>
         /// Handle external clip updates.
         /// </summary>
-        /// <param name="m"></param>
-        void DoClipboardUpdate(Message m)
+        /// <param name="msg"></param>
+        void DoClipboardUpdate(Message msg)
         {
             // m.HWnd  A handle to the window whose window procedure receives the message - not sender!
             // This member is NULL when the message is a thread message.
 
+
+
+
+
+
             // It's possible to have contention for the clipboard so retry is ok.
             int retries = 5;
+
 
             while (retries > 0)
             {
                 try
                 {
                     IDataObject? dobj = Clipboard.GetDataObject();
+
+                    var tst = DateTime.Now.ToString(_timeFormat);
+                    var hash = dobj.GetHashCode();
+
+                    //Sometimes get multiples of the same message. Ignore subsequent of the same id.
+                    //The usual mitigation strategy is to avoid reacting to every update, and react to the LAST
+                    //update after a reasonable "settle time" has elapsed with no further clipboard notifications.
+                    //500ms will usually be more than adequate.
+                    var seq = GetClipboardSequenceNumber();
+                    if (seq == _lastSeq)
+                    {
+                        return;
+                    }
+
+
+
+                    _logger.Debug($"DoClipboardUpdate() ts:{tst} hash:{hash} seq:{seq}");
+
+                    _lastSeq = (int)seq;
 
                     if (dobj is not null)
                     {
@@ -260,24 +308,36 @@ namespace WinClip
 
                         if (Clipboard.ContainsText())
                         {
+                            var txt = Clipboard.GetText();
                             clip = new()
                             {
-                                Data = dobj,
+                                Data = new DataObject(txt), //dobj,//TODO copy!
                                 Width = _clipWidth,
                                 Height = _clipHeight,
-                                ShortText = Clipboard.GetText().Left(80),
+                                ShortText = txt.Left(80),
                             };
                         }
                         else if (Clipboard.ContainsImage())
                         {
-                            var bmp = Clipboard.GetImage() as Bitmap;
+                            //var data = Clipboard.GetDataObject();
+                            //var fmts = data.GetFormats();
+
+                            var img = Clipboard.GetImage();
+                            var bmp = img as Bitmap;
+
+
 
                             // Hacks to work around win11 bug in KB5079473 that causes system Print Screen to generate
                             // more than one message. This is a crude way to protect from that until MS fixes the issue.
                             // https://learn.microsoft.com/en-us/answers/questions/5593390/windows-11-25h2-snipping-tool-print-screen-saves-t
                             // https://learn.microsoft.com/en-us/answers/questions/5831588/there-are-two-copies-of-the-screenshot-in-the-clip
                             TimeSpan ts = DateTime.Now - _lastBmpTime;
-                            if (((DateTime.Now - _lastBmpTime).TotalMilliseconds > 250) || bmp.Size != _lastBmpSize)
+
+                            _logger.Debug($"ts:{ts}");
+
+                            int cutoff = 250; // measured like 60 msec
+
+                            if (((DateTime.Now - _lastBmpTime).TotalMilliseconds > cutoff) || bmp.Size != _lastBmpSize)
                             {
                                 // Not the same so assume valid.
                                 // Make a thumbnail scaled to available real estate.
@@ -286,7 +346,7 @@ namespace WinClip
                                 //clip.Thumbnail = bmp.Resize(tnWidth, tnHeight);
                                 clip = new()
                                 {
-                                    Data = dobj,
+                                    Data = new DataObject(bmp), //dobj, //TODO copy!
                                     Width = _clipWidth,
                                     Height = _clipHeight,
                                     Thumbnail = bmp.Resize(tnWidth, tnHeight)
@@ -347,12 +407,10 @@ namespace WinClip
                     retries = 0;
                 }
             }
-
-            m.Result = -1; // means handled?
         }
 
         /// <summary>
-        /// A clip tile was clicked.
+        /// A clip was clicked.
         /// </summary>
         /// <param name="clip"></param>
         /// <param name="single"></param>
@@ -361,38 +419,121 @@ namespace WinClip
         {
             if (single)
             {
-                // Push into sys clipboard.
-                _suppress = true;
-                Clipboard.SetDataObject(clip.Data);
+                // I think this needs to be copied. TODO
+                //clip.Data
+                //if (fmts.Contains("System.Drawing.Bitmap")) DataType = ClipType.Bitmap;
+                //else if (fmts.Contains("Rich Text Format")) DataType = ClipType.RichText;
+                //else if (fmts.Contains("System.String")) DataType = ClipType.PlainText;
 
-                var fmts = clip.Data.GetFormats();
-                var tt = clip.Data.GetData("Text");
-                var fgi = GetWindowInfo(_fg);
-                var spi = GetWindowInfo(_previousWin);
-                var sci = GetWindowInfo(_currentWin);
+        //        _logger.Debug($"ClipClick() enter [{clip.DataType}]");
+
+                switch (clip.DataType)
+                {
+                    case ClipDisplay.ClipType.PlainText:
+                        var pt = clip.Data.GetData("Text");
+                        // remove from list.
+                        Controls.Remove(clip);
+                        _clips.Remove(clip);
+                        // Push into sys clipboard which will move it to the top.
+                        _suppressClipboardUpdate = true;
+         //               _logger.Debug($"Clipboard.SetData(System.String) in");
+                        Clipboard.SetData("System.String", pt); //TODO make a "safe" SetData()?
+        //                _logger.Debug($"Clipboard.SetData(System.String) out");
+                        break;
+
+                    case ClipDisplay.ClipType.RichText:
+                        var rt = clip.Data.GetData("Text");
+                        // remove from list.
+                        Controls.Remove(clip);
+                        _clips.Remove(clip);
+                        // Push into sys clipboard which will move it to the top.
+                        _suppressClipboardUpdate = true;
+                        Clipboard.SetData("Rich Text Format", rt);
+                        break;
+
+                    case ClipDisplay.ClipType.Bitmap:
+                        var bmp = clip.Data.GetData("System.Drawing.Bitmap");
+                        // remove from list.
+                        Controls.Remove(clip);
+                        _clips.Remove(clip);
+                        // Push into sys clipboard which will move it to the top.
+                        _suppressClipboardUpdate = true;
+                        Clipboard.SetData("System.Drawing.Bitmap", bmp);
+                        break;
+
+                    default:
+                        _logger.Error("TODO error");
+                        break;
+                }
+
+                //if (clip.DataType == ClipType.string)
+                //clip.getstring()
+                //Clipboard.SetDataObject(clip.Data);
+                //else image
+                //else fail
+
+
+
+                //// Push into sys clipboard.
+                //_suppress = true;
+                //Clipboard.SetDataObject(clip.Data);
+
+                //var fmts = clip.Data.GetFormats();
+                //var tt = clip.Data.GetData("Text");
+                //var fgi = GetWindowInfo(_fg);
+                //var spi = GetWindowInfo(_previousWin);
+                //var sci = GetWindowInfo(_currentWin);
 
                 // Send to the last window that was foreground, since this is now fg. 
                 WM.ForegroundWindow = _previousWin;
                 SendKeys.Send("^{V}");
 
-                // Push to head of our fifo.
-                _clips.Remove(clip);
-                _clips.AddFirst(clip);
+                //// Push to head of our fifo.
+                //_clips.Remove(clip);
+                //_clips.AddFirst(clip);
 
                 // Restore last window to fg.
                 //WM.ForegroundWindow = fg; // _previousWin;
                 //WindowState = FormWindowState.Minimized;
 
                 Invalidate();
+    //            _logger.Debug($"ClipClick() exit [{clip.DataType}]");
             }
             // else double??
         }
 
         /// <summary>
+        /// Keeps track of foreground window for paste ops.
+        /// </summary>
+        void WindowEventCallback(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
+        {
+            if (hwnd != _currentWin)
+            {
+                var winfo = GetWindowInfo(hwnd);
+
+                if (winfo.Value.ProcessName != "explorer")
+                {
+                    //_logger.Debug($">>> FG:{winfo}");
+
+                    _previousWin = _currentWin;
+                    _currentWin = hwnd;
+
+                    txtCurrentWin.Text = $"{GetWindowInfo(_currentWin).Value.Title}";
+                    txtPreviousWin.Text = $"{GetWindowInfo(_previousWin).Value.Title}";
+                }
+            }
+        }
+
+
+
+
+        #region TODO useful??///////////////////////////////////////////////////////
+
+        /// <summary>
         /// Handle hotkey messages.
         /// </summary>
         /// <param name="m"></param>
-        void DoHotkey(Message m)
+        void DoHotkey(Message m) // TODO is this useful now? put in NDev if not.
         {
             // m.HWnd  A handle to the window whose window procedure receives the message - not sender!
             // This member is NULL when the message is a thread message.
@@ -404,38 +545,14 @@ namespace WinClip
             //var fgi = GetWindowInfo(_fg);
             //_logger.Debug($">>> WM_HOTKEY_MESSAGE_ID {fgi}");
 
-            //// TODO Show UI to let user pick a clip to paste.
+            //// Show UI to let user pick a clip to paste.
             //WindowState = FormWindowState.Normal;
 
             m.Result = -1; // means handled?
         }
 
-
-        #region Drawing
         /// <summary>
-        /// Draw the UI.
-        /// </summary>
-        /// <param name="e">The particular PaintEventArgs.</param>
-        protected override void OnPaint(PaintEventArgs e)
-        {
-            // Assign ordered locations.
-            int xloc = 5;
-            int yloc = 5;
-            int yinc = _clipHeight + 5;
-
-            foreach (var cl in _clips)
-            {
-                cl.Location = new Point(xloc, yloc);
-                yloc += yinc;
-            }
-
-            base.OnPaint(e);
-        }
-        #endregion
-
-        #region Windows Hooks
-        /// <summary>
-        /// Low level hook function.
+        /// Low level keyboard hook function.
         /// </summary>
         /// <param name="code">Virtual-key code in the range 1 to 254. If less than zero, pass the message to the CallNextHookEx function without further processing.</param>
         /// <param name="wParam">One of the following messages: WM_KEYDOWN WM_KEYUP WM_SYSKEYDOWN WM_SYSKEYUP.</param>
@@ -477,27 +594,30 @@ namespace WinClip
                 return W32.CallNextHookEx(_hHook, code, wParam, ref lParam);
             }
         }
+        #endregion
 
+
+
+
+        #region Drawing
         /// <summary>
-        /// Keeps track of foreground window for paste ops.
+        /// Draw the UI.
         /// </summary>
-        void WindowEventCallback(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
+        /// <param name="e">The particular PaintEventArgs.</param>
+        protected override void OnPaint(PaintEventArgs e)
         {
-            if (hwnd != _currentWin)
+            // Assign ordered locations.
+            int xloc = 5;
+            int yloc = 5;
+            int yinc = _clipHeight + 5;
+
+            foreach (var cl in _clips)
             {
-                var winfo = GetWindowInfo(hwnd);
-
-                if (winfo.Value.ProcessName != "explorer")
-                {
-                    _logger.Debug($">>> FG:{winfo}");
-
-                    _previousWin = _currentWin;
-                    _currentWin = hwnd;
-
-                    txtCurrentWin.Text = $"{GetWindowInfo(_currentWin).Value.AppName}";
-                    txtPreviousWin.Text = $"{GetWindowInfo(_previousWin).Value.AppName}";
-                }
+                cl.Location = new Point(xloc, yloc);
+                yloc += yinc;
             }
+
+            base.OnPaint(e);
         }
         #endregion
 
@@ -564,14 +684,14 @@ namespace WinClip
                 {
                     try
                     {
-                        using ProcessModule? module = process.MainModule;
-                        IntPtr hModule = W32.GetModuleHandle(module!.ModuleName!);
+                        //using ProcessModule? module = process.MainModule;
+                        //IntPtr hModule = W32.GetModuleHandle(module!.ModuleName!);
                         var title = appInfo.Title;
                         var procName = process.ProcessName;
-                        var modName = module.ModuleName;
-                        var appName = "???";
+                        var modName = "YYY";// module.ModuleName;
+                        var appName = "XXX";
 
-                        appName = Path.GetFileName(module!.FileName);
+                        //appName = Path.GetFileName(module!.FileName);
                         winfo = new(hwnd, procName, appName, title, appInfo.IsVisible, appInfo.Parent);
                         retries = 0; // done
                     }
@@ -636,6 +756,9 @@ namespace WinClip
 
         [DllImport("user32.dll", SetLastError = true)]
         private static extern int UnhookWinEvent(IntPtr hWinEventHook);
+
+        [DllImport("user32.dll")]
+        private static extern uint GetClipboardSequenceNumber();
         #endregion
     }
 }

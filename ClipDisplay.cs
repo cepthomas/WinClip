@@ -17,6 +17,7 @@ namespace WinClip
     /// <summary>
     /// One selectable clip item.
     /// </summary>
+    [ToolboxItem(false), Browsable(false)] // not useable in designer
     public class ClipDisplay : UserControl
     {
         #region Types
@@ -45,6 +46,33 @@ namespace WinClip
         }
         IDataObject? _data = null;
 
+
+
+
+        //public ClipDisplay(IDataObject? data)
+        //{
+        //    //_data = value;
+        //    if (data is null) DataType = ClipType.Empty;
+
+        //    var fmts = data.GetFormats().ToHashSet();
+
+        //    if (fmts.Contains("System.Drawing.Bitmap")) DataType = ClipType.Bitmap;
+
+        //    else if (fmts.Contains("Rich Text Format")) DataType = ClipType.RichText;
+
+        //    else if (fmts.Contains("System.String")) DataType = ClipType.PlainText;
+
+        //    else DataType = ClipType.Other;
+        //}
+
+
+
+        // the actual data
+        public Bitmap? BitmapData { get; set; } = null;
+        public string? TextData { get; set; } = null;
+
+
+
         /// <summary>Flavor.</summary>
         public ClipType DataType { get; private set; }
 
@@ -54,11 +82,11 @@ namespace WinClip
         /// <summary>For display.</summary>
         public Image? Thumbnail { get; set; } = null;
 
-        /// <summary>Who sourced it.</summary>
-        public string OriginatingApp { get; set; } = "Unknown";
+        ///// <summary>Who sourced it.</summary>
+        //public string OriginatingApp { get; set; } = "Unknown";
 
-        /// <summary>Who sourced it.</summary>
-        public string OriginatingTitle { get; set; } = "Unknown";
+        ///// <summary>Who sourced it.</summary>
+        //public string OriginatingTitle { get; set; } = "Unknown";
         #endregion
 
         #region Fields
@@ -113,7 +141,7 @@ namespace WinClip
                 $"Clip {Id}",
                 $"DataType:[{DataType}]",
                 $"Data:[{Data}] [{Data.GetHashCode()}]",
-                $"Origin App:[{OriginatingApp}] Title:[{OriginatingTitle}]",
+             //   $"Origin App:[{OriginatingApp}] Title:[{OriginatingTitle}]",
                 $"Formats:[{dfmts}]" ];
 
             switch (DataType)
