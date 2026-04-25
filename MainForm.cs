@@ -137,18 +137,23 @@ namespace WinClip
             for (int i = 0; i < 4; i++)
             {
                 var s = $"TEST_{i}";
-                ClipDisplay clip = new()
+                Clip clip = new()
                 {
                     ShortText = s,
                     Data = new DataObject(s),
+                };
+
+                ClipDisplay clipd = new(clip)
+                {
                     Width = _clipWidth,
                     Height = _clipHeight,
                 };
-                clip.MouseClick += (sender, e) => { ClipClick(sender as ClipDisplay, true, e.Button); };
-                clip.MouseDoubleClick += (sender, e) => { ClipClick(sender as ClipDisplay, false, e.Button); };
 
-                _clips.AddLast(clip);
-                Controls.Add(clip);
+                clipd.MouseClick += (sender, e) => { ClipClick(sender as ClipDisplay, true, e.Button); };
+                clipd.MouseDoubleClick += (sender, e) => { ClipClick(sender as ClipDisplay, false, e.Button); };
+
+                _clips.AddLast(clipd);
+                Controls.Add(clipd);
             }
         }
 
@@ -304,16 +309,17 @@ namespace WinClip
                     if (dobj is not null)
                     {
                         // Determine data type. This application is only interested in text and images.
-                        ClipDisplay? clip = null;
+                        Clip? clip = null;
+                        //ClipDisplay? clip = null;
 
                         if (Clipboard.ContainsText())
                         {
                             var txt = Clipboard.GetText();
                             clip = new()
                             {
-                                Data = new DataObject(txt), //dobj,//TODO copy!
-                                Width = _clipWidth,
-                                Height = _clipHeight,
+                                Data = new DataObject(txt),
+                                //Width = _clipWidth,
+                                //Height = _clipHeight,
                                 ShortText = txt.Left(80),
                             };
                         }
@@ -324,8 +330,6 @@ namespace WinClip
 
                             var img = Clipboard.GetImage();
                             var bmp = img as Bitmap;
-
-
 
                             // Hacks to work around win11 bug in KB5079473 that causes system Print Screen to generate
                             // more than one message. This is a crude way to protect from that until MS fixes the issue.
@@ -346,9 +350,9 @@ namespace WinClip
                                 //clip.Thumbnail = bmp.Resize(tnWidth, tnHeight);
                                 clip = new()
                                 {
-                                    Data = new DataObject(bmp), //dobj, //TODO copy!
-                                    Width = _clipWidth,
-                                    Height = _clipHeight,
+                                    Data = new DataObject(bmp),
+                                    //Width = _clipWidth,
+                                    //Height = _clipHeight,
                                     Thumbnail = bmp.Resize(tnWidth, tnHeight)
                                 };
                             }
@@ -366,11 +370,13 @@ namespace WinClip
                             //clip.OriginatingApp = appName ?? "Unknown";
                             //clip.OriginatingTitle = info.Title.ToString();
 
-                            clip.MouseClick += (sender, e) => { ClipClick(sender as ClipDisplay, true, e.Button); };
-                            clip.MouseDoubleClick += (sender, e) => { ClipClick(sender as ClipDisplay, false, e.Button); };
+                            ClipDisplay clipd = new(clip);
 
-                            _clips.AddFirst(clip);
-                            Controls.Add(clip);
+                            clipd.MouseClick += (sender, e) => { ClipClick(sender as ClipDisplay, true, e.Button); };
+                            clipd.MouseDoubleClick += (sender, e) => { ClipClick(sender as ClipDisplay, false, e.Button); };
+
+                            _clips.AddFirst(clipd);
+                            Controls.Add(clipd);
 
                             // Limit - remove tail(s).
                             while (_clips.Count > _settings.MaxClips)
@@ -415,25 +421,17 @@ namespace WinClip
         /// <param name="clip"></param>
         /// <param name="single"></param>
         /// <param name="button"></param>
-        void ClipClick(ClipDisplay? clip, bool single, MouseButtons button) // TODO test
+        void ClipClick(ClipDisplay clipd, bool single, MouseButtons button) // TODO test
         {
             if (single)
             {
-                // I think this needs to be copied. TODO
-                //clip.Data
-                //if (fmts.Contains("System.Drawing.Bitmap")) DataType = ClipType.Bitmap;
-                //else if (fmts.Contains("Rich Text Format")) DataType = ClipType.RichText;
-                //else if (fmts.Contains("System.String")) DataType = ClipType.PlainText;
-
-        //        _logger.Debug($"ClipClick() enter [{clip.DataType}]");
-
-                switch (clip.DataType)
+                switch (clipd.DataType)
                 {
                     case ClipDisplay.ClipType.PlainText:
                         var pt = clip.Data.GetData("Text");
                         // remove from list.
-                        Controls.Remove(clip);
-                        _clips.Remove(clip);
+                        Controls.Remove(clipd);
+                        _clips.Remove(clipd);
                         // Push into sys clipboard which will move it to the top.
                         _suppressClipboardUpdate = true;
          //               _logger.Debug($"Clipboard.SetData(System.String) in");
@@ -444,8 +442,8 @@ namespace WinClip
                     case ClipDisplay.ClipType.RichText:
                         var rt = clip.Data.GetData("Text");
                         // remove from list.
-                        Controls.Remove(clip);
-                        _clips.Remove(clip);
+                        Controls.Remove(clipd);
+                        _clips.Remove(clipd);
                         // Push into sys clipboard which will move it to the top.
                         _suppressClipboardUpdate = true;
                         Clipboard.SetData("Rich Text Format", rt);
@@ -454,8 +452,8 @@ namespace WinClip
                     case ClipDisplay.ClipType.Bitmap:
                         var bmp = clip.Data.GetData("System.Drawing.Bitmap");
                         // remove from list.
-                        Controls.Remove(clip);
-                        _clips.Remove(clip);
+                        Controls.Remove(clipd);
+                        _clips.Remove(clipd);
                         // Push into sys clipboard which will move it to the top.
                         _suppressClipboardUpdate = true;
                         Clipboard.SetData("System.Drawing.Bitmap", bmp);
@@ -466,43 +464,13 @@ namespace WinClip
                         break;
                 }
 
-                //if (clip.DataType == ClipType.string)
-                //clip.getstring()
-                //Clipboard.SetDataObject(clip.Data);
-                //else image
-                //else fail
-
-
-
-                //// Push into sys clipboard.
-                //_suppress = true;
-                //Clipboard.SetDataObject(clip.Data);
-
-                //var fmts = clip.Data.GetFormats();
-                //var tt = clip.Data.GetData("Text");
-                //var fgi = GetWindowInfo(_fg);
-                //var spi = GetWindowInfo(_previousWin);
-                //var sci = GetWindowInfo(_currentWin);
-
-                // Send to the last window that was foreground, since this is now fg. 
+                // Send paste to the last window that was foreground, since this is now fg. 
                 WM.ForegroundWindow = _previousWin;
-
                 var fg = GetWindowInfo(WM.ForegroundWindow);
                _logger.Debug($"Paste to [{fg.Value.ProcessName}]");
-
-
                 SendKeys.Send("^{V}");
 
-                //// Push to head of our fifo.
-                //_clips.Remove(clip);
-                //_clips.AddFirst(clip);
-
-                // Restore last window to fg.
-                //WM.ForegroundWindow = fg; // _previousWin;
-                //WindowState = FormWindowState.Minimized;
-
                 Invalidate();
-    //            _logger.Debug($"ClipClick() exit [{clip.DataType}]");
             }
             // else double??
         }
@@ -514,12 +482,10 @@ namespace WinClip
         {
             if (hwnd != _currentWin)
             {
-                var winfo = GetWindowInfo(hwnd);
+                var winfo = GetWindowInfo(hwnd).Value;
 
-                if (winfo.Value.ProcessName != "explorer")
+                if (winfo.IsVisible && winfo.ProcessName != "explorer")
                 {
-                    //_logger.Debug($">>> FG:{winfo}");
-
                     _previousWin = _currentWin;
                     _currentWin = hwnd;
 
