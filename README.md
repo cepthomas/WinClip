@@ -19,5 +19,3 @@ Defaults:
 - MagicKey
     - make app window visible
     - clip.click => paste selection to last fg window
-    
-

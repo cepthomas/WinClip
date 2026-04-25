@@ -39,7 +39,7 @@ namespace WinClip
             tvInfo.MaxText = 50000;
             tvInfo.Name = "tvInfo";
             tvInfo.Prompt = "";
-            tvInfo.Size = new System.Drawing.Size(511, 420);
+            tvInfo.Size = new System.Drawing.Size(825, 420);
             tvInfo.TabIndex = 0;
             tvInfo.WordWrap = true;
             // 
@@ -87,7 +87,7 @@ namespace WinClip
             txtCurrentWin.Location = new System.Drawing.Point(357, 12);
             txtCurrentWin.Name = "txtCurrentWin";
             txtCurrentWin.ReadOnly = true;
-            txtCurrentWin.Size = new System.Drawing.Size(436, 26);
+            txtCurrentWin.Size = new System.Drawing.Size(750, 26);
             txtCurrentWin.TabIndex = 9;
             // 
             // txtPreviousWin
@@ -97,7 +97,7 @@ namespace WinClip
             txtPreviousWin.Location = new System.Drawing.Point(357, 44);
             txtPreviousWin.Name = "txtPreviousWin";
             txtPreviousWin.ReadOnly = true;
-            txtPreviousWin.Size = new System.Drawing.Size(436, 26);
+            txtPreviousWin.Size = new System.Drawing.Size(750, 26);
             txtPreviousWin.TabIndex = 10;
             // 
             // label1
@@ -148,7 +148,7 @@ namespace WinClip
             // 
             // MainForm
             // 
-            ClientSize = new System.Drawing.Size(806, 598);
+            ClientSize = new System.Drawing.Size(1120, 598);
             Controls.Add(btnSettings);
             Controls.Add(lblCtrl);
             Controls.Add(lblAlt);
@@ -164,7 +164,6 @@ namespace WinClip
             FormBorderStyle = System.Windows.Forms.FormBorderStyle.SizableToolWindow;
             Icon = (System.Drawing.Icon)resources.GetObject("$this.Icon");
             Name = "MainForm";
-            StartPosition = System.Windows.Forms.FormStartPosition.Manual;
             Text = "Hoo Haa";
             ResumeLayout(false);
             PerformLayout();

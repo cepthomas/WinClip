@@ -24,11 +24,10 @@ namespace WinClip
     public partial class MainForm : Form
     {
         #region Types
-        record struct WindowInfo(IntPtr hwnd, string ProcessName, string AppName, string Title)
+        record struct WindowInfo(IntPtr Hwnd, string ProcessName, string AppName, string Title, bool IsVisible, IntPtr Parent)
         {
-            public override readonly string ToString() { return $"hwnd:{hwnd} process:{ProcessName} app:{AppName} title:{Title}"; }
+            public override readonly string ToString() { return $"hwnd:0X{Hwnd:X8} proc:{ProcessName} app:{AppName} title:{Title} vis:{IsVisible} parent:0X{Parent:X8}"; }
         }
-        // record struct WindowInfo(IntPtr hwnd = IntPtr.Zero, string ProcessName = "???", string AppName = "???", string Title = "???");
         #endregion
 
         #region Fields
@@ -56,6 +55,16 @@ namespace WinClip
         /// <summary>Manage resources.</summary>
         bool _disposed;
 
+
+        int _clipHeight = 50;
+        int _clipWidth = 200;
+        IntPtr _fg;
+        bool _suppress = false;
+        //public static int Height { get; set; } = 50;
+        //public static int Width { get; set; } = 200;
+        //public enum SelectorStyle { Tile, Icon }
+
+
         #region Hacks to work around win11 bug
         Size _lastBmpSize = new();
         DateTime _lastBmpTime = DateTime.Now;
@@ -80,10 +89,14 @@ namespace WinClip
             UpdateFromSettings();
 
             ///// Main form init.
-            ShowInTaskbar = true;// false;
-//            WindowState = FormWindowState.Minimized;
-//            Location = _settings.FormGeometry.Location;
-//            Size = _settings.FormGeometry.Size;
+            //ShowInTaskbar = false;
+            //ShowInTaskbar = true;
+            //WindowState = FormWindowState.Minimized;
+            //StartPosition = FormStartPosition.Manual;
+
+            //Location = new(500, 100);
+            //Location = _settings.FormGeometry.Location;
+            //Size = _settings.FormGeometry.Size;
             //Visible = false; // doesn't work - like C:\Dev\Misc\NLab\TrayExForm - use Minimized?
 
             ///// Init controls.
@@ -123,6 +136,27 @@ namespace WinClip
 
             //var wi = GetWindowInfo(Handle);
             //_logger.Debug($"Myself init ProcessInfo::: {wi}");
+
+            // Debug stuff
+            for (int i = 0; i < 4; i++)
+            {
+                var s = $"TEST{i}";
+
+                //IDataObject data = new(s);
+                //DataObject myDataObject = new DataObject(s);
+                //myDataObject.SetData(s);
+
+                ClipDisplay clip = new()
+                {
+                    ShortText = s,
+                    Data = new DataObject(s)
+                };
+                clip.MouseClick += (sender, e) => { ClipClick(sender as ClipDisplay, true, e.Button); };
+                clip.MouseDoubleClick += (sender, e) => { ClipClick(sender as ClipDisplay, false, e.Button); };
+
+                _clips.AddLast(clip);
+                Controls.Add(clip);
+            }
         }
 
         /// <summary>
@@ -170,143 +204,151 @@ namespace WinClip
         }
         #endregion
         
-        
-IntPtr fg;
-
-
-        #region Message Processing
         /// <summary>
         /// Handle window messages.
         /// </summary>
-        /// <param name="m"></param>
-        protected override void WndProc(ref Message m)
+        /// <param name="msg"></param>
+        protected override void WndProc(ref Message msg)
         {
-            // m.HWnd  A handle to the window whose window procedure receives the message - not sender
+            // m.HWnd  A handle to the window whose window procedure receives the message - not sender!
             // This member is NULL when the message is a thread message.
 
-            if (m.Msg == W32.WM_CLIPBOARDUPDATE) // clipboard contents have changed
+            switch (msg.Msg)
             {
-                // It's possible to have contention for the clipboard so retry is ok.
-                int retries = 5;
-
-                //_logger.Debug($"UpdateClipboard() HWnd:0X{m.HWnd:X8} Msg:{m.Msg} WParam:{m.WParam} LParam:{m.LParam}");
-                //_logger.Debug($"WndProc WM_CLIPBOARDUPDATE WindowInfo::: {GetWindowInfo(WM.ForegroundWindow)}");"
-
-                while (retries > 0)
-                {
-                    try
+                case W32.WM_CLIPBOARDUPDATE: // clipboard contents have changed
+                    if (!_suppress) // one shot
                     {
-                        IDataObject? dobj = Clipboard.GetDataObject();
+                        DoClipboardUpdate(msg);
+                    }
+                    _suppress = false;
 
-                        if (dobj is not null)
+                    break;
+
+                case W32.WM_HOTKEY_MESSAGE_ID:
+                    DoHotkey(msg);
+                    break;
+
+                default:
+                    // Ignore, pass along.
+                    base.WndProc(ref msg);
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Handle external clip updates.
+        /// </summary>
+        /// <param name="m"></param>
+        void DoClipboardUpdate(Message m)
+        {
+            // m.HWnd  A handle to the window whose window procedure receives the message - not sender!
+            // This member is NULL when the message is a thread message.
+
+            // It's possible to have contention for the clipboard so retry is ok.
+            int retries = 5;
+
+            while (retries > 0)
+            {
+                try
+                {
+                    IDataObject? dobj = Clipboard.GetDataObject();
+
+                    if (dobj is not null)
+                    {
+                        // Determine data type. This application is only interested in text and images.
+                        ClipDisplay? clip = null;
+
+                        if (Clipboard.ContainsText())
                         {
-                            // Determine data type. This application is only interested in text and images - all others are passed on to smarter clients.
-                            ClipDisplay? clip = null;
-
-                            if (Clipboard.ContainsText())
+                            clip = new()
                             {
+                                Data = dobj,
+                                Width = _clipWidth,
+                                Height = _clipHeight,
+                                ShortText = Clipboard.GetText().Left(80),
+                            };
+                        }
+                        else if (Clipboard.ContainsImage())
+                        {
+                            var bmp = Clipboard.GetImage() as Bitmap;
+
+                            // Hacks to work around win11 bug in KB5079473 that causes system Print Screen to generate
+                            // more than one message. This is a crude way to protect from that until MS fixes the issue.
+                            // https://learn.microsoft.com/en-us/answers/questions/5593390/windows-11-25h2-snipping-tool-print-screen-saves-t
+                            // https://learn.microsoft.com/en-us/answers/questions/5831588/there-are-two-copies-of-the-screenshot-in-the-clip
+                            TimeSpan ts = DateTime.Now - _lastBmpTime;
+                            if (((DateTime.Now - _lastBmpTime).TotalMilliseconds > 250) || bmp.Size != _lastBmpSize)
+                            {
+                                // Not the same so assume valid.
+                                // Make a thumbnail scaled to available real estate.
+                                int tnHeight = _clipHeight;
+                                int tnWidth = _clipWidth * _clipHeight / bmp.Height;
+                                //clip.Thumbnail = bmp.Resize(tnWidth, tnHeight);
                                 clip = new()
                                 {
-                                    ShortText = Clipboard.GetText().Left(80),
-                                    Data = Clipboard.GetDataObject()
+                                    Data = dobj,
+                                    Width = _clipWidth,
+                                    Height = _clipHeight,
+                                    Thumbnail = bmp.Resize(tnWidth, tnHeight)
                                 };
                             }
-                            else if (Clipboard.ContainsImage())
-                            {
-                                var bmp = Clipboard.GetImage() as Bitmap;
+                            //else suspect, wait
 
-                                // Hacks to work around win11 bug in KB5079473 that causes system Print Screen to generate
-                                // more than one message. This is a crude way to protect from that until MS fixes the issue.
-                                // https://learn.microsoft.com/en-us/answers/questions/5593390/windows-11-25h2-snipping-tool-print-screen-saves-t
-                                // https://learn.microsoft.com/en-us/answers/questions/5831588/there-are-two-copies-of-the-screenshot-in-the-clip
-                                TimeSpan ts = DateTime.Now - _lastBmpTime;
-                                if (((DateTime.Now - _lastBmpTime).TotalMilliseconds > 250) || bmp.Size != _lastBmpSize)
-                                {
-                                    // Not the same so assume valid.
-                                    clip = new() { Data = Clipboard.GetDataObject() };
-                                    // Make a thumbnail scaled to available real estate.
-                                    int tnHeight = ClipDisplay.Height;
-                                    int tnWidth = ClipDisplay.Width * ClipDisplay.Height / bmp.Height;
-                                    clip.Thumbnail = bmp.Resize(tnWidth, tnHeight);
-                                }
-                                //else suspect, wait
-
-                                // Reset state.
-                                _lastBmpTime = DateTime.Now;
-                                _lastBmpSize = bmp.Size;
-                            }
-                            //else Something else, ignore.
-
-                            if (clip != null)
-                            {
-                                clip.Data = Clipboard.GetDataObject();
-//                                clip.OriginatingApp = appName ?? "Unknown";
-//                                clip.OriginatingTitle = info.Title.ToString();
-
-                                clip.MouseClick += (sender, e) => { ClipClick(sender as ClipDisplay, true, e.Button); };
-                                clip.MouseDoubleClick += (sender, e) => { ClipClick(sender as ClipDisplay, false, e.Button); };
-
-                                _clips.AddFirst(clip);
-                                Controls.Add(clip);
-
-                                // Limit - remove tail(s).
-                                while (_clips.Count > _settings.MaxClips)
-                                {
-                                    var clipx = _clips.Last();
-                                    Controls.Remove(clipx);
-                                    _clips.Remove(clipx);
-                                }
-
-                                _logger.Debug($"New clip:{clip}");
-
-                                Invalidate();
-                            }
-
-                            retries = 0; // done
+                            // Reset state.
+                            _lastBmpTime = DateTime.Now;
+                            _lastBmpSize = bmp.Size;
                         }
-                        else
+                        // Something else, ignore
+
+                        if (clip != null)
                         {
-                            _logger.Warn($"WndProc GetDataObject() is null");
-                            retries--;
+                            //clip.Data = Clipboard.GetDataObject();
+                            //clip.OriginatingApp = appName ?? "Unknown";
+                            //clip.OriginatingTitle = info.Title.ToString();
+
+                            clip.MouseClick += (sender, e) => { ClipClick(sender as ClipDisplay, true, e.Button); };
+                            clip.MouseDoubleClick += (sender, e) => { ClipClick(sender as ClipDisplay, false, e.Button); };
+
+                            _clips.AddFirst(clip);
+                            Controls.Add(clip);
+
+                            // Limit - remove tail(s).
+                            while (_clips.Count > _settings.MaxClips)
+                            {
+                                var clipx = _clips.Last();
+                                Controls.Remove(clipx);
+                                _clips.Remove(clipx);
+                            }
+
+                            _logger.Debug($"New clip:{clip}");
+
+                            Invalidate();
                         }
+
+                        retries = 0; // done
                     }
-                    catch (ExternalException ex)
+                    else
                     {
-                        // Retry: Data could not be retrieved from the Clipboard.
-                        // This typically occurs when the Clipboard is being used by another process.
-                        _logger.Warn($"WndProc WM_DRAWCLIPBOARD ExternalException:{ex}");
+                        _logger.Warn($"WndProc GetDataObject() is null");
                         retries--;
-                        Thread.Sleep(50);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.Warn($"WndProc WM_DRAWCLIPBOARD Exception:{ex}");
-                        retries = 0;
                     }
                 }
-
-                m.Result = -1; // means handled?
+                catch (ExternalException ex)
+                {
+                    // Retry: Data could not be retrieved from the Clipboard.
+                    // This typically occurs when the Clipboard is being used by another process.
+                    _logger.Warn($"WndProc WM_DRAWCLIPBOARD ExternalException:{ex}");
+                    retries--;
+                    Thread.Sleep(50);
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warn($"WndProc WM_DRAWCLIPBOARD Exception:{ex}");
+                    retries = 0;
+                }
             }
-            else if (m.Msg == W32.WM_HOTKEY_MESSAGE_ID)
-            {
-                // Could decode if we needed to handle more than one.
 
-                // Get current window.
-                fg = WM.ForegroundWindow;
-                var fgi = GetWindowInfo(fg);
-                tvInfo.Append($">>>{fg}");
-
-                // TODO Show UI to let user pick a clip to paste.
-                WindowState = FormWindowState.Normal;
-
-
-                m.Result = -1; // means handled?
-            }
-            else
-            {
-                // Ignore, pass along.
-                base.WndProc(ref m);
-            }
+            m.Result = -1; // means handled?
         }
 
         /// <summary>
@@ -320,32 +362,54 @@ IntPtr fg;
             if (single)
             {
                 // Push into sys clipboard.
+                _suppress = true;
                 Clipboard.SetDataObject(clip.Data);
 
+                var fmts = clip.Data.GetFormats();
+                var tt = clip.Data.GetData("Text");
+                var fgi = GetWindowInfo(_fg);
+                var spi = GetWindowInfo(_previousWin);
+                var sci = GetWindowInfo(_currentWin);
+
                 // Send to the last window that was foreground, since this is now fg. 
-                //W32.SendMessage(fg, W32.WM_PASTE, IntPtr.Zero, IntPtr.Zero);
-                // This does work. Virtual keycodes from https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
-                W32.InjectKey(W32.VK_CONTROL);
-                W32.InjectKey('v');
-                W32.InjectKey(W32.VK_CONTROL, up: true);
-                W32.InjectKey('v', up: true);
+                WM.ForegroundWindow = _previousWin;
+                SendKeys.Send("^{V}");
 
                 // Push to head of our fifo.
                 _clips.Remove(clip);
                 _clips.AddFirst(clip);
 
                 // Restore last window to fg.
-//WM.ForegroundWindow = fg; // _previousWin;
-//WindowState = FormWindowState.Minimized;
-
-
+                //WM.ForegroundWindow = fg; // _previousWin;
+                //WindowState = FormWindowState.Minimized;
 
                 Invalidate();
-
             }
             // else double??
         }
-        #endregion
+
+        /// <summary>
+        /// Handle hotkey messages.
+        /// </summary>
+        /// <param name="m"></param>
+        void DoHotkey(Message m)
+        {
+            // m.HWnd  A handle to the window whose window procedure receives the message - not sender!
+            // This member is NULL when the message is a thread message.
+
+            // Could decode if we needed to handle more than one.
+
+            //// Get current window.
+            //_fg = WM.ForegroundWindow;
+            //var fgi = GetWindowInfo(_fg);
+            //_logger.Debug($">>> WM_HOTKEY_MESSAGE_ID {fgi}");
+
+            //// TODO Show UI to let user pick a clip to paste.
+            //WindowState = FormWindowState.Normal;
+
+            m.Result = -1; // means handled?
+        }
+
 
         #region Drawing
         /// <summary>
@@ -357,7 +421,7 @@ IntPtr fg;
             // Assign ordered locations.
             int xloc = 5;
             int yloc = 5;
-            int yinc = ClipDisplay.Height + 5;
+            int yinc = _clipHeight + 5;
 
             foreach (var cl in _clips)
             {
@@ -372,7 +436,7 @@ IntPtr fg;
         #region Windows Hooks
         /// <summary>
         /// Low level hook function.
-        /// </summary>x
+        /// </summary>
         /// <param name="code">Virtual-key code in the range 1 to 254. If less than zero, pass the message to the CallNextHookEx function without further processing.</param>
         /// <param name="wParam">One of the following messages: WM_KEYDOWN WM_KEYUP WM_SYSKEYDOWN WM_SYSKEYUP.</param>
         /// <param name="lParam">Pointer to a KBDLLHOOKSTRUCT structure.</param>
@@ -393,21 +457,6 @@ IntPtr fg;
                 bool winKey = (key == Keys.LWin || key == Keys.RWin) && keyDown;
                 bool ctrlKey = (key & Keys.Control) > 0 && keyDown;
                 bool altKey = (key & Keys.Alt) > 0 && keyDown;
-
-                //vkCode: Check if this member equals VK_CONTROL(
-                //), VK_LCONTROL(
-                //), or VK_RCONTROL(
-                //).
-                //flags: Indicates if the key is pressed(
-                //) or released(
-                //).
-
-                //var  cc = W32.VK_CONTROL;
-                //if (lParam.vkCode == 'Z' && (GetKeyState(VK_CONTROL) < 0))
-                //{
-                //    // Ctrl+Z pressed
-                //    return 1; // Block it
-                //}
 
                 // Diagnostics.
                 lblCtrl.BackColor = ctrlKey ? Color.LimeGreen : SystemColors.Control;
@@ -436,13 +485,19 @@ IntPtr fg;
         {
             if (hwnd != _currentWin)
             {
-                _previousWin = _currentWin;
-                _currentWin = hwnd;
-            }
+                var winfo = GetWindowInfo(hwnd);
 
-            //tvInfo.Append($"FG:{GetWindowInfo(hwnd)}");
-            //txtCurrentWin.Text = GetWindowInfo(_currentWin).ToString();
-            //txtPreviousWin.Text = GetWindowInfo(_previousWin).ToString();
+                if (winfo.Value.ProcessName != "explorer")
+                {
+                    _logger.Debug($">>> FG:{winfo}");
+
+                    _previousWin = _currentWin;
+                    _currentWin = hwnd;
+
+                    txtCurrentWin.Text = $"{GetWindowInfo(_currentWin).Value.AppName}";
+                    txtPreviousWin.Text = $"{GetWindowInfo(_previousWin).Value.AppName}";
+                }
+            }
         }
         #endregion
 
@@ -495,10 +550,10 @@ IntPtr fg;
         WindowInfo? GetWindowInfo(IntPtr hwnd = 0)
         {
             Process? process = null;
-            WindowInfo? wi = null;
+            WindowInfo? winfo = null;
 
-            var info = WM.GetAppWindowInfo(hwnd);
-            process = hwnd == 0 ? Process.GetCurrentProcess() : Process.GetProcessById(info.Pid);
+            var appInfo = WM.GetAppWindowInfo(hwnd);
+            process = hwnd == 0 ? Process.GetCurrentProcess() : Process.GetProcessById(appInfo.Pid);
 
             if (process is not null)
             {
@@ -511,13 +566,13 @@ IntPtr fg;
                     {
                         using ProcessModule? module = process.MainModule;
                         IntPtr hModule = W32.GetModuleHandle(module!.ModuleName!);
-                        var title = info.Title;
+                        var title = appInfo.Title;
                         var procName = process.ProcessName;
                         var modName = module.ModuleName;
                         var appName = "???";
 
                         appName = Path.GetFileName(module!.FileName);
-                        wi = new(hwnd, procName, appName, title);
+                        winfo = new(hwnd, procName, appName, title, appInfo.IsVisible, appInfo.Parent);
                         retries = 0; // done
                     }
                     catch (Win32Exception ex)
@@ -537,7 +592,7 @@ IntPtr fg;
                 }
             }
 
-            return wi;
+            return winfo;
         }
 
         /// <summary>Do debug stuff.</summary>
@@ -545,9 +600,16 @@ IntPtr fg;
         /// <param name="e"></param>
         void Debug_Click(object sender, EventArgs e)
         {
-            foreach (var clip in _clips)
+            //foreach (var clip in _clips)
+            //{
+            //    tvInfo.Append(clip.Format());
+            //}
+
+            List<IntPtr> appwins = WM.GetTopWindows(false);
+            foreach (IntPtr appwin in appwins)
             {
-                tvInfo.Append(clip.Format());
+                var winfo = GetWindowInfo(appwin);
+                tvInfo.Append(winfo.ToString());
             }
         }
         #endregion

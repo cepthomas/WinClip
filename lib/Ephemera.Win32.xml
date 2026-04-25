@@ -146,6 +146,13 @@
             Get the shell window.
             </summary>
         </member>
+        <member name="M:Ephemera.Win32.WindowManagement.GetTopWindows(System.Boolean)">
+            <summary>
+            Get all top level window handles.
+            </summary>
+            <param name="includeInvisible"></param>
+            <returns></returns>
+        </member>
         <member name="M:Ephemera.Win32.WindowManagement.GetAppWindows(System.String,System.Boolean)">
             <summary>
             Get all pertinent/visible windows for the application. Ignores non-visible or non-titled (internal).
