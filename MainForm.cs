@@ -24,9 +24,9 @@ namespace WinClip
     public partial class MainForm : Form
     {
         #region Types
-        record struct WindowInfo(IntPtr Hwnd, string ProcessName, string AppName, string Title, bool IsVisible, IntPtr Parent)
+        record struct WindowInfo(IntPtr Hwnd, string ProcessName, string Title, bool IsVisible, IntPtr Parent)
         {
-            public override readonly string ToString() { return $"hwnd:0X{Hwnd:X8} proc:{ProcessName} app:{AppName} title:{Title} vis:{IsVisible} parent:0X{Parent:X8}"; }
+            public override readonly string ToString() { return $"hwnd:0X{Hwnd:X8} proc:{ProcessName} title:{Title} vis:{IsVisible} parent:0X{Parent:X8}"; }
         }
         #endregion
 
@@ -486,6 +486,11 @@ namespace WinClip
 
                 // Send to the last window that was foreground, since this is now fg. 
                 WM.ForegroundWindow = _previousWin;
+
+                var fg = GetWindowInfo(WM.ForegroundWindow);
+               _logger.Debug($"Paste to [{fg.Value.ProcessName}]");
+
+
                 SendKeys.Send("^{V}");
 
                 //// Push to head of our fifo.
@@ -669,49 +674,11 @@ namespace WinClip
         /// <param name="hwnd">If 0, my process</param>
         WindowInfo? GetWindowInfo(IntPtr hwnd = 0)
         {
-            Process? process = null;
-            WindowInfo? winfo = null;
-
             var appInfo = WM.GetAppWindowInfo(hwnd);
-            process = hwnd == 0 ? Process.GetCurrentProcess() : Process.GetProcessById(appInfo.Pid);
-
-            if (process is not null)
-            {
-                // https://stackoverflow.com/questions/9501771/how-to-avoid-a-win32-exception-when-accessing-process-mainmodule-filename-in-c                // It's possible to have contention for the clipboard so retry is ok.
-                int retries = 5;
-
-                while (retries > 0)
-                {
-                    try
-                    {
-                        //using ProcessModule? module = process.MainModule;
-                        //IntPtr hModule = W32.GetModuleHandle(module!.ModuleName!);
-                        var title = appInfo.Title;
-                        var procName = process.ProcessName;
-                        var modName = "YYY";// module.ModuleName;
-                        var appName = "XXX";
-
-                        //appName = Path.GetFileName(module!.FileName);
-                        winfo = new(hwnd, procName, appName, title, appInfo.IsVisible, appInfo.Parent);
-                        retries = 0; // done
-                    }
-                    catch (Win32Exception ex)
-                    {
-                        retries--;
-
-                        if (retries > 0)
-                        {
-                            Thread.Sleep(50);
-                        }
-                        else
-                        {
-                            // Hard fail.
-                            throw new InvalidOperationException("process.MainModule.FileName failed");
-                        }
-                    }
-                }
-            }
-
+            Process? process = hwnd == 0 ? Process.GetCurrentProcess() : Process.GetProcessById(appInfo.Pid);
+            var title = appInfo.Title;
+            var procName = process.ProcessName;
+            WindowInfo? winfo = new(hwnd, procName, title, appInfo.IsVisible, appInfo.Parent);
             return winfo;
         }
 
