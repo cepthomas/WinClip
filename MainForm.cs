@@ -95,6 +95,9 @@ namespace WinClip
             //Size = _settings.FormGeometry.Size;
             //Visible = false; // doesn't work - like C:\Dev\Misc\NLab\TrayExForm - use Minimized?
 
+            ClipBase.DrawArea = new(_clipWidth, _clipHeight);
+
+
             ///// Init controls.
             tvInfo.BackColor = Color.Cornsilk;
             tvInfo.Matchers =
@@ -324,7 +327,7 @@ namespace WinClip
                             if (((DateTime.Now - _lastBmpTime).TotalMilliseconds > cutoff) || bmp.Size != _lastBmpSize)
                             {
                                 // Not the same so assume valid.
-                                clip = new ImageClip(dobj, _clipWidth, _clipHeight);
+                                clip = new ImageClip(dobj);
                             }
                             //else suspect, wait
 
@@ -345,64 +348,11 @@ namespace WinClip
                             // TODO
                         }
 
-
-
-                        //if (Clipboard.ContainsText())
-                        //{
-                        //    if (fmts.Contains("System.Drawing.Bitmap")) DataType = ClipType.Bitmap;
-                        //    else if (fmts.Contains("Rich Text Format")) DataType = ClipType.RichText;
-                        //    //var txt = Clipboard.GetText();
-                        //    clip = new TextClip(dobj);
-                        //    //clip = new()
-                        //    //{
-                        //    //    Data = new DataObject(txt),
-                        //    //    //Width = _clipWidth,
-                        //    //    //Height = _clipHeight,
-                        //    //    ShortText = txt.Left(80),
-                        //    //};
-                        //}
-                        //else if (Clipboard.ContainsImage())
-                        //{
-                        //    //var data = Clipboard.GetDataObject();
-                        //    //var fmts = data.GetFormats();
-                        //    var img = Clipboard.GetImage();
-                        //    var bmp = img as Bitmap;
-
-                        //    // Hacks to work around win11 bug in KB5079473 that causes system Print Screen to generate
-                        //    // more than one message. This is a crude way to protect from that until MS fixes the issue.
-                        //    // https://learn.microsoft.com/en-us/answers/questions/5593390/windows-11-25h2-snipping-tool-print-screen-saves-t
-                        //    // https://learn.microsoft.com/en-us/answers/questions/5831588/there-are-two-copies-of-the-screenshot-in-the-clip
-                        //    TimeSpan ts = DateTime.Now - _lastBmpTime;
-                        //    _logger.Debug($"ts:{ts}");
-                        //    int cutoff = 250; // measured like 60 msec
-
-                        //    if (((DateTime.Now - _lastBmpTime).TotalMilliseconds > cutoff) || bmp.Size != _lastBmpSize)
-                        //    {
-                        //        // Not the same so assume valid.
-                        //        clip = new ImageClip(dobj, _clipWidth, _clipHeight);
-
-                        //        //// Make a thumbnail scaled to available real estate.
-                        //        //int tnHeight = _clipHeight;
-                        //        //int tnWidth = _clipWidth * _clipHeight / bmp.Height;
-                        //        ////clip.Thumbnail = bmp.Resize(tnWidth, tnHeight);
-                        //        //clip = new()
-                        //        //{
-                        //        //    Data = new DataObject(bmp),
-                        //        //    //Width = _clipWidth,
-                        //        //    //Height = _clipHeight,
-                        //        //    Thumbnail = bmp.Resize(tnWidth, tnHeight)
-                        //        //};
-                        //    }
-                        //    //else suspect, wait
-
-                        //    // Reset state.
-                        //    _lastBmpTime = DateTime.Now;
-                        //    _lastBmpSize = bmp.Size;
-                        //}
-                        //// Something else, ignore
-
                         if (clip != null)
                         {
+                            var sf = clip.Format();
+
+
                             //clip.Data = Clipboard.GetDataObject();
                             //clip.OriginatingApp = appName ?? "Unknown";
                             //clip.OriginatingTitle = info.Title.ToString();
@@ -573,7 +523,7 @@ namespace WinClip
 
 
 
-        #region TODO useful??///////////////////////////////////////////////////////
+        #region TODO these useful??///////////////////////////////////////////////////////
 
         /// <summary>
         /// Handle hotkey messages.

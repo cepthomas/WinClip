@@ -46,46 +46,27 @@ namespace WinClip
         protected override void OnPaint(PaintEventArgs pe)
         {
             pe.Graphics.Clear(BackColor);
+            pe.Graphics.DrawImage(Clip.Thumbnail, 0, 0);
 
-            switch (clipd.Clip)
-            {
-                case TextClip cltxt:
-                    pe.Graphics.DrawString(cltxt.ShortText, Font, Brushes.Black, ClientRectangle);
-                    break;
+            //switch (Clip)
+            //{
+            //    case PlainTextClip cltxt:
+            //        pe.Graphics.DrawString(cltxt.ShortText, Font, Brushes.Black, ClientRectangle);
+            //        break;
 
-                case ImageClip climg:
-                    var bmp = climg.BitmapData;
-                    // remove from list.
-                    Controls.Remove(clipd);
-                    _clips.Remove(clipd);
-                    // Push into sys clipboard which will move it to the top.
-                    _suppressClipboardUpdate = true;
-                    Clipboard.SetData(ImageClip.IMG_TYPE_NAME, bmp);
-                    break;
+            //    case RtfTextClip clrtf:
+            //        pe.Graphics.DrawString(clrtf.ShortText, Font, Brushes.Black, ClientRectangle);
+            //        break;
 
-                default:
-                    _logger.Error("TODO error");
-                    break;
-            }
+            //    case ImageClip climg:
+            //        pe.Graphics.DrawImage(climg.Thumbnail, 0, 0);
+            //        break;
 
-
-
-
-            switch (_clip.DataType)
-            {
-                case ClipType.PlainText:
-                case ClipType.RichText:
-                    pe.Graphics.DrawString(_clip.ShortText, Font, Brushes.Black, ClientRectangle);
-                    break;
-
-                case ClipType.Bitmap:
-                    pe.Graphics.DrawImage(_clip.Thumbnail, 0, 0);
-                    break;
-
-                default:
-                    pe.Graphics.Clear(Color.SpringGreen);
-                    break;
-            }
+            //    default:
+            //        pe.Graphics.Clear(Color.SpringGreen);
+            //        //_logger.Error("TODO error");
+            //        break;
+            //}
         }
     }
 }
