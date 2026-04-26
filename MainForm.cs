@@ -133,15 +133,11 @@ namespace WinClip
             //var wi = GetWindowInfo(Handle);
             //_logger.Debug($"Myself init ProcessInfo::: {wi}");
 
-            // Debug stuff
+            // Debug stuff 
             for (int i = 0; i < 4; i++)
             {
-                var s = $"TEST_{i}";
-                Clip clip = new()
-                {
-                    ShortText = s,
-                    Data = new DataObject(s),
-                };
+                var s = $">>>{i}>>> Nice little clouds playing around in the sky. I'm sort of a softy, I couldn't shoot Bambi except with a camera. We artists are a different breed of people.";
+                var clip = new PlainTextClip(new DataObject(s));
 
                 ClipDisplay clipd = new(clip)
                 {
@@ -309,52 +305,26 @@ namespace WinClip
                     if (dobj is not null)
                     {
                         // Determine data type. This application is only interested in text and images.
-                        Clip? clip = null;
+                        ClipBase? clip = null;
                         //ClipDisplay? clip = null;
 
-                        if (Clipboard.ContainsText())
+                        var fmts = dobj.GetFormats();
+                        if (fmts.Contains(ImageClip.TYPE_NAME))
                         {
-                            var txt = Clipboard.GetText();
-                            clip = new()
-                            {
-                                Data = new DataObject(txt),
-                                //Width = _clipWidth,
-                                //Height = _clipHeight,
-                                ShortText = txt.Left(80),
-                            };
-                        }
-                        else if (Clipboard.ContainsImage())
-                        {
-                            //var data = Clipboard.GetDataObject();
-                            //var fmts = data.GetFormats();
-
-                            var img = Clipboard.GetImage();
-                            var bmp = img as Bitmap;
-
                             // Hacks to work around win11 bug in KB5079473 that causes system Print Screen to generate
                             // more than one message. This is a crude way to protect from that until MS fixes the issue.
                             // https://learn.microsoft.com/en-us/answers/questions/5593390/windows-11-25h2-snipping-tool-print-screen-saves-t
                             // https://learn.microsoft.com/en-us/answers/questions/5831588/there-are-two-copies-of-the-screenshot-in-the-clip
+                            var img = Clipboard.GetImage();
+                            var bmp = img as Bitmap;
                             TimeSpan ts = DateTime.Now - _lastBmpTime;
-
                             _logger.Debug($"ts:{ts}");
-
                             int cutoff = 250; // measured like 60 msec
 
                             if (((DateTime.Now - _lastBmpTime).TotalMilliseconds > cutoff) || bmp.Size != _lastBmpSize)
                             {
                                 // Not the same so assume valid.
-                                // Make a thumbnail scaled to available real estate.
-                                int tnHeight = _clipHeight;
-                                int tnWidth = _clipWidth * _clipHeight / bmp.Height;
-                                //clip.Thumbnail = bmp.Resize(tnWidth, tnHeight);
-                                clip = new()
-                                {
-                                    Data = new DataObject(bmp),
-                                    //Width = _clipWidth,
-                                    //Height = _clipHeight,
-                                    Thumbnail = bmp.Resize(tnWidth, tnHeight)
-                                };
+                                clip = new ImageClip(dobj, _clipWidth, _clipHeight);
                             }
                             //else suspect, wait
 
@@ -362,7 +332,74 @@ namespace WinClip
                             _lastBmpTime = DateTime.Now;
                             _lastBmpSize = bmp.Size;
                         }
-                        // Something else, ignore
+                        else if (fmts.Contains(RtfTextClip.TYPE_NAME))
+                        {
+                            clip = new RtfTextClip(dobj);
+                        }
+                        else if (fmts.Contains(PlainTextClip.TYPE_NAME))
+                        {
+                            clip = new PlainTextClip(dobj);
+                        }
+                        else
+                        {
+                            // TODO
+                        }
+
+
+
+                        //if (Clipboard.ContainsText())
+                        //{
+                        //    if (fmts.Contains("System.Drawing.Bitmap")) DataType = ClipType.Bitmap;
+                        //    else if (fmts.Contains("Rich Text Format")) DataType = ClipType.RichText;
+                        //    //var txt = Clipboard.GetText();
+                        //    clip = new TextClip(dobj);
+                        //    //clip = new()
+                        //    //{
+                        //    //    Data = new DataObject(txt),
+                        //    //    //Width = _clipWidth,
+                        //    //    //Height = _clipHeight,
+                        //    //    ShortText = txt.Left(80),
+                        //    //};
+                        //}
+                        //else if (Clipboard.ContainsImage())
+                        //{
+                        //    //var data = Clipboard.GetDataObject();
+                        //    //var fmts = data.GetFormats();
+                        //    var img = Clipboard.GetImage();
+                        //    var bmp = img as Bitmap;
+
+                        //    // Hacks to work around win11 bug in KB5079473 that causes system Print Screen to generate
+                        //    // more than one message. This is a crude way to protect from that until MS fixes the issue.
+                        //    // https://learn.microsoft.com/en-us/answers/questions/5593390/windows-11-25h2-snipping-tool-print-screen-saves-t
+                        //    // https://learn.microsoft.com/en-us/answers/questions/5831588/there-are-two-copies-of-the-screenshot-in-the-clip
+                        //    TimeSpan ts = DateTime.Now - _lastBmpTime;
+                        //    _logger.Debug($"ts:{ts}");
+                        //    int cutoff = 250; // measured like 60 msec
+
+                        //    if (((DateTime.Now - _lastBmpTime).TotalMilliseconds > cutoff) || bmp.Size != _lastBmpSize)
+                        //    {
+                        //        // Not the same so assume valid.
+                        //        clip = new ImageClip(dobj, _clipWidth, _clipHeight);
+
+                        //        //// Make a thumbnail scaled to available real estate.
+                        //        //int tnHeight = _clipHeight;
+                        //        //int tnWidth = _clipWidth * _clipHeight / bmp.Height;
+                        //        ////clip.Thumbnail = bmp.Resize(tnWidth, tnHeight);
+                        //        //clip = new()
+                        //        //{
+                        //        //    Data = new DataObject(bmp),
+                        //        //    //Width = _clipWidth,
+                        //        //    //Height = _clipHeight,
+                        //        //    Thumbnail = bmp.Resize(tnWidth, tnHeight)
+                        //        //};
+                        //    }
+                        //    //else suspect, wait
+
+                        //    // Reset state.
+                        //    _lastBmpTime = DateTime.Now;
+                        //    _lastBmpSize = bmp.Size;
+                        //}
+                        //// Something else, ignore
 
                         if (clip != null)
                         {
@@ -425,44 +462,82 @@ namespace WinClip
         {
             if (single)
             {
-                switch (clipd.DataType)
+                switch (clipd.Clip)
                 {
-                    case ClipDisplay.ClipType.PlainText:
-                        var pt = clip.Data.GetData("Text");
+                    case PlainTextClip pcltxt:
+                        //var pt = pcltxt.Data;
                         // remove from list.
                         Controls.Remove(clipd);
                         _clips.Remove(clipd);
                         // Push into sys clipboard which will move it to the top.
                         _suppressClipboardUpdate = true;
-         //               _logger.Debug($"Clipboard.SetData(System.String) in");
-                        Clipboard.SetData("System.String", pt); //TODO make a "safe" SetData()?
-        //                _logger.Debug($"Clipboard.SetData(System.String) out");
+                        // _logger.Debug($"Clipboard.SetData(System.String) in");
+                        Clipboard.SetData(PlainTextClip.TYPE_NAME, pcltxt.Data); //TODO make a "safe" SetData()?
                         break;
 
-                    case ClipDisplay.ClipType.RichText:
-                        var rt = clip.Data.GetData("Text");
+                    case RtfTextClip pcltxt:
+                        //var pt = pcltxt.Data;
                         // remove from list.
                         Controls.Remove(clipd);
                         _clips.Remove(clipd);
                         // Push into sys clipboard which will move it to the top.
                         _suppressClipboardUpdate = true;
-                        Clipboard.SetData("Rich Text Format", rt);
+                        // _logger.Debug($"Clipboard.SetData(System.String) in");
+                        Clipboard.SetData(RtfTextClip.TYPE_NAME, pcltxt.Data); //TODO make a "safe" SetData()?
                         break;
 
-                    case ClipDisplay.ClipType.Bitmap:
-                        var bmp = clip.Data.GetData("System.Drawing.Bitmap");
+                    case ImageClip climg:
                         // remove from list.
                         Controls.Remove(clipd);
                         _clips.Remove(clipd);
                         // Push into sys clipboard which will move it to the top.
                         _suppressClipboardUpdate = true;
-                        Clipboard.SetData("System.Drawing.Bitmap", bmp);
+                        Clipboard.SetData(ImageClip.TYPE_NAME, climg.Data);
                         break;
 
                     default:
                         _logger.Error("TODO error");
                         break;
                 }
+
+                //        switch (clipd.DataType)
+                //        {
+                //            case ClipDisplay.ClipType.PlainText:
+                //                var pt = clip.Data.GetData("Text");
+                //                // remove from list.
+                //                Controls.Remove(clipd);
+                //                _clips.Remove(clipd);
+                //                // Push into sys clipboard which will move it to the top.
+                //                _suppressClipboardUpdate = true;
+                // //               _logger.Debug($"Clipboard.SetData(System.String) in");
+                //                Clipboard.SetData("System.String", pt); //TODO make a "safe" SetData()?
+                ////                _logger.Debug($"Clipboard.SetData(System.String) out");
+                //                break;
+
+                //            case ClipDisplay.ClipType.RichText:
+                //                var rt = clip.Data.GetData("Text");
+                //                // remove from list.
+                //                Controls.Remove(clipd);
+                //                _clips.Remove(clipd);
+                //                // Push into sys clipboard which will move it to the top.
+                //                _suppressClipboardUpdate = true;
+                //                Clipboard.SetData("Rich Text Format", rt);
+                //                break;
+
+                //            case ClipDisplay.ClipType.Bitmap:
+                //                var bmp = clip.Data.GetData("System.Drawing.Bitmap");
+                //                // remove from list.
+                //                Controls.Remove(clipd);
+                //                _clips.Remove(clipd);
+                //                // Push into sys clipboard which will move it to the top.
+                //                _suppressClipboardUpdate = true;
+                //                Clipboard.SetData("System.Drawing.Bitmap", bmp);
+                //                break;
+
+                //            default:
+                //                _logger.Error("TODO error");
+                //                break;
+                //        }
 
                 // Send paste to the last window that was foreground, since this is now fg. 
                 WM.ForegroundWindow = _previousWin;

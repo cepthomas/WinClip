@@ -14,143 +14,241 @@ using Ephemera.NBagOfUis;
 
 namespace WinClip
 {
-    /// <summary>
-    /// One clip item.
-    /// </summary>
-    public class Clip
+    /// <summary>Abstract base class for all clips.</summary>
+    [Serializable]
+    public abstract class ClipBase
     {
-        #region Types
-        /// <summary>For internal management.</summary>
-        public enum ClipType { Empty, PlainText, RichText, Bitmap, Other };
-        #endregion
-
         #region Properties
-        /// <summary>For owner use.</summary>
-        public int Id { get; set; } = -1;
-
-        /// <summary>Original clipboard data. TODO? persist clip data.</summary>
-        public IDataObject? Data
-        {
-            get { return _data; }
-            set
-            {
-                _data = value;
-                if (value is null) DataType = ClipType.Empty;
-                var fmts = value.GetFormats().ToHashSet();
-                if (fmts.Contains("System.Drawing.Bitmap")) DataType = ClipType.Bitmap;
-                else if (fmts.Contains("Rich Text Format")) DataType = ClipType.RichText;
-                else if (fmts.Contains("System.String")) DataType = ClipType.PlainText;
-                else DataType = ClipType.Other;
-            }
-        }
-        IDataObject? _data = null;
-
-        /// <summary>Flavor.</summary>
-        public ClipType DataType { get; private set; }
-
-        /// <summary>For display.</summary>
-        public string? ShortText { get; set; } = null;
-
-        /// <summary>For display.</summary>
-        public Image? Thumbnail { get; set; } = null;
+        /// <summary>Keep track of things.</summary>
+        public int Id { get;  } = -1;
         #endregion
-
-        // the actual data
-        public Bitmap? BitmapData { get; set; } = null;
-        public string? TextData { get; set; } = null;
 
         #region Fields
         /// <summary>Assign ids.</summary>
         static int _nextId = 1;
+
+        /// <summary>Original formats supported.</summary>
+        protected List<string> _formats = [];
+        #endregion
+
+        protected ClipBase()
+        {
+            Id = _nextId++;
+        }
+
+        #region Abstract functions
+        /// <summary>
+        /// Readable contents with detail.
+        /// </summary>
+        /// <returns></returns>
+        public abstract string Format();
+
+        /// <summary>
+        /// Convert to clipboard format.
+        /// </summary>
+        /// <returns></returns>
+        public abstract IDataObject? ToData();
+        #endregion
+    }
+
+    /// <summary>Plain text.</summary>
+    [Serializable]
+    public class PlainTextClip : ClipBase
+    {
+        #region Properties
+        /// <summary>Actual content.</summary>
+        public string Data { get; private set; }
+
+        /// <summary>For display.</summary>
+        public string ShortText { get; private set; }
+        #endregion
+
+        #region Fields
+        public const string TYPE_NAME = "System.String";
         #endregion
 
         /// <summary>
         /// Constructor.
         /// </summary>
-        public Clip()
+        /// <param name="data"></param>
+        public PlainTextClip(IDataObject data)
         {
-            Id = _nextId++;
+            Data = (string)data.GetData(TYPE_NAME);
+            ShortText = Data.Left(80); //TODO configurable or calculated
+            _formats = [.. data.GetFormats()];
         }
 
-        /// <summary>
-        /// Readable contents with detail.
-        /// </summary>
-        /// <returns></returns>
-        public string Format()
+        /// <inheritdoc />
+        public override string Format()
         {
-            var dfmts = string.Join("|", Data.GetFormats());
-
             List<string> ls = [
-                $"Clip {Id}",
-                $"DataType:[{DataType}]",
-                $"Data:[{Data}] [{Data.GetHashCode()}]",
-                $"Formats:[{dfmts}]" ];
-
-            switch (DataType)
-            {
-                case ClipType.Bitmap:
-                    var bmp = (Bitmap)Data.GetData(typeof(Bitmap));
-                    var tn = Thumbnail;
-                    if (bmp is null) { ls.Add($"Bitmap IS NULL!!!!!"); }
-                    else { ls.Add($"Bitmap W:{bmp.Width} H:{bmp.Height}"); }
-                    ls.Add($"Thumbnail W:{tn.Width} H:{tn.Height}");
-                    break;
-
-                case ClipType.PlainText:
-                    var pt = Data.GetData(typeof(string));
-                    break;
-
-                case ClipType.RichText:
-                    var rt = Data.GetData(typeof(string));
-                    break;
-
-                case ClipType.Empty:
-                    ls.Add($"EMPTY!!!!!!");
-                    break;
-
-                default:
-                    ls.Add($"WTF!!!!!");
-                    break;
-            }
-
+                $"PlainTextClip:[{Id}]",
+                $"Formats:[{string.Join("|", _formats)}]",
+                $"ShortText:[{ShortText}]",
+            ];
             return string.Join(Environment.NewLine + "  ", ls);
         }
 
-        /// <summary>
-        /// Readable contents.
-        /// </summary>
-        /// <returns></returns>
+        /// <inheritdoc />
+        public override IDataObject? ToData()
+        {
+            var dobj = new DataObject(Data);
+            return dobj;
+        }
+
+        /// <summary>For viewing pleasure.</summary>
         public override string ToString()
         {
-            var sid = $"Clip {Id}";
-            string sdet;
+            return $"PlainTextClip:[{Id}] ShortText:[{ShortText}]";
+        }
+    }
 
-            switch (DataType)
+    /// <summary>RTF text.</summary>
+    [Serializable]
+    public class RtfTextClip : ClipBase
+    {
+        #region Properties
+        /// <summary>Actual content.</summary>
+        public string Data { get; private set; }
+
+        /// <summary>For display.</summary>
+        public string ShortText { get; private set; }
+        #endregion
+
+        #region Fields
+        public const string TYPE_NAME = "Rich Text Format";
+        #endregion
+
+        /// <summary>
+        /// Constructor.
+        /// </summary>
+        /// <param name="data"></param>
+        public RtfTextClip(IDataObject data)
+        {
+            Data = (string)data.GetData(TYPE_NAME);
+            ShortText = Data.Left(80); //TODO configurable or calculated
+            _formats = [.. data.GetFormats()];
+        }
+
+        /// <inheritdoc />
+        public override string Format()
+        {
+            List<string> ls = [
+                $"RtfTextClip:[{Id}]",
+                $"Formats:[{string.Join("|", _formats)}]",
+                $"ShortText:[{ShortText}]",
+            ];
+            return string.Join(Environment.NewLine + "  ", ls);
+        }
+
+        /// <inheritdoc />
+        public override IDataObject? ToData()
+        {
+            return new DataObject(Data);
+        }
+
+        /// <summary>For viewing pleasure.</summary>
+        public override string ToString()
+        {
+            return $"RtfTextClip:[{Id}] ShortText:[{ShortText}]";
+        }
+    }
+
+    /// <summary>Image.</summary>
+    [Serializable]
+    public class ImageClip : ClipBase
+    {
+        #region Properties
+        /// <summary>Actual content.</summary>
+        public Bitmap Data { get; private set; }
+
+        /// <summary>For display.</summary>
+        public Bitmap Thumbnail { get; private set; }
+        #endregion
+
+        #region Fields
+        public const string TYPE_NAME = "System.Drawing.Bitmap";
+        #endregion
+
+        /// <summary>
+        /// Constructor.
+        /// </summary>
+        /// <param name="data"></param>
+        public ImageClip(IDataObject data, int width, int height) //TODO W/H
+        {
+            Data = (Bitmap)data.GetData(typeof(Bitmap));
+            // Make a thumbnail scaled to available real estate.
+            int tnWidth = width * height / Data.Height;
+            int tnHeight = height;
+            Thumbnail = Data.Resize(tnWidth, tnHeight);
+            _formats = data.GetFormats().ToList();
+        }
+
+        /// <inheritdoc />
+        public override string Format()
+        {
+            List<string> ls = [
+                $"ImageClip:[{Id}]",
+                $"Formats:[{string.Join("|", _formats)}]",
+                $"Bitmap W:{Data.Width} H:{Data.Height}",
+            ];
+            return string.Join(Environment.NewLine + "  ", ls);
+        }
+
+        /// <inheritdoc />
+        public override IDataObject? ToData()
+        {
+            return new DataObject(Data);
+        }
+
+        /// <summary>For viewing pleasure.</summary>
+        public override string ToString()
+        {
+            return $"ImageClip:[{Id}] W:{Data.Width} H:{Data.Height}";
+        }
+    }
+
+    /// <summary>Could be unknown/empty/unsupported TODO.</summary>
+    [Serializable]
+    public class DefaultClip : ClipBase
+    {
+        #region Fields
+        IDataObject? _data = null;
+        #endregion
+
+        /// <summary>
+        /// Constructor.
+        /// </summary>
+        /// <param name="data"></param>
+        public DefaultClip(IDataObject? data)
+        {
+            _data = data;
+
+            if (_data is not null)
             {
-                case ClipType.Bitmap:
-                    var bmp = (Bitmap)Data.GetData(typeof(Bitmap));
-                    if (bmp is null) { sdet = $"Bitmap IS NULL!!!!!"; }
-                    else { sdet = $"Bitmap W:{bmp.Width} H:{bmp.Height}"; }
-                    break;
-
-                case ClipType.PlainText:
-                    sdet = $"PlainText [{(ShortText == null ? "null" : ShortText.Left(12))}]";
-                    break;
-
-                case ClipType.RichText:
-                    sdet = $"RichText [{(ShortText == null ? "null" : ShortText.Left(12))}]";
-                    break;
-
-                case ClipType.Empty:
-                    sdet = "EMPTY!!!!!!";
-                    break;
-
-                default:
-                    sdet = "WTF???";
-                    break;
+                _formats = _data.GetFormats().ToList();
             }
+        }
 
-            return $"{sid} {sdet}";
+        /// <inheritdoc />
+        public override string Format()
+        {
+            List<string> ls = [
+                $"DefaultClip {Id}",
+                $"Formats:[{string.Join("|", _formats)}]" ];
+            return string.Join(Environment.NewLine + "  ", ls);
+        }
+
+        /// <inheritdoc />
+        public override IDataObject? ToData()
+        {
+            return _data;
+        }
+
+        /// <summary>For viewing pleasure.</summary>
+        public override string ToString()
+        {
+            return $"DefaultClip:[{Id}]";
         }
     }
 }
