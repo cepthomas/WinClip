@@ -87,17 +87,17 @@ namespace WinClip
             txtCurrentWin.Location = new System.Drawing.Point(357, 12);
             txtCurrentWin.Name = "txtCurrentWin";
             txtCurrentWin.ReadOnly = true;
-            txtCurrentWin.Size = new System.Drawing.Size(750, 26);
+            txtCurrentWin.Size = new System.Drawing.Size(145, 26);
             txtCurrentWin.TabIndex = 9;
             // 
             // txtPreviousWin
             // 
             txtPreviousWin.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
             txtPreviousWin.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            txtPreviousWin.Location = new System.Drawing.Point(357, 44);
+            txtPreviousWin.Location = new System.Drawing.Point(603, 12);
             txtPreviousWin.Name = "txtPreviousWin";
             txtPreviousWin.ReadOnly = true;
-            txtPreviousWin.Size = new System.Drawing.Size(750, 26);
+            txtPreviousWin.Size = new System.Drawing.Size(145, 26);
             txtPreviousWin.TabIndex = 10;
             // 
             // label1
@@ -112,7 +112,7 @@ namespace WinClip
             // label2
             // 
             label2.AutoSize = true;
-            label2.Location = new System.Drawing.Point(290, 46);
+            label2.Location = new System.Drawing.Point(536, 14);
             label2.Name = "label2";
             label2.Size = new System.Drawing.Size(61, 19);
             label2.TabIndex = 12;

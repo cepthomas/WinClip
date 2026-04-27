@@ -27,7 +27,7 @@ namespace WinClip
 
         #region Fields
         /// <summary>The clip.</summary>
-        ClipBase _clip;
+        readonly ClipBase _clip;
         #endregion
 
         /// <summary>
@@ -37,6 +37,8 @@ namespace WinClip
         {
             _clip = clip;
             BorderStyle = BorderStyle.FixedSingle;
+            Width = ClipBase.DrawArea.Width;
+            Height = ClipBase.DrawArea.Height;
         }
 
         /// <summary>
@@ -46,27 +48,8 @@ namespace WinClip
         protected override void OnPaint(PaintEventArgs pe)
         {
             pe.Graphics.Clear(BackColor);
-            pe.Graphics.DrawImage(Clip.Thumbnail, 0, 0);
-
-            //switch (Clip)
-            //{
-            //    case PlainTextClip cltxt:
-            //        pe.Graphics.DrawString(cltxt.ShortText, Font, Brushes.Black, ClientRectangle);
-            //        break;
-
-            //    case RtfTextClip clrtf:
-            //        pe.Graphics.DrawString(clrtf.ShortText, Font, Brushes.Black, ClientRectangle);
-            //        break;
-
-            //    case ImageClip climg:
-            //        pe.Graphics.DrawImage(climg.Thumbnail, 0, 0);
-            //        break;
-
-            //    default:
-            //        pe.Graphics.Clear(Color.SpringGreen);
-            //        //_logger.Error("TODO error");
-            //        break;
-            //}
+            //pe.Graphics.DrawRectangle(Pens.Black, 5, 5, 100, 100);
+            pe.Graphics.DrawImage(Clip.Rendering, 0, 0, Clip.Rendering.Width, Clip.Rendering.Height);
         }
     }
 }
