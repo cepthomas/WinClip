@@ -68,18 +68,17 @@ namespace WinClip
 
             ///// Load settings and init logging.
             string appDir = MiscUtils.GetAppDataDir("WinClip", "Ephemera");
-            Common.Settings = (UserSettings)SettingsCore.Load(appDir, typeof(UserSettings));
+            UserSettings.Settings = (UserSettings)SettingsCore.Load(appDir, typeof(UserSettings));
             string logFileName = Path.Combine(appDir, "log.txt");
             LogManager.LogMessage += LogManager_LogMessage;
             LogManager.Run(logFileName, 100000);
             UpdateFromSettings();
 
-            //this.Icon = Icon. Properties.Resources.canard;
             Icon = Icon.ExtractAssociatedIcon(Assembly.GetExecutingAssembly().Location);
 
             ///// Main form init.
-            Location = Common.Settings.FormGeometry.Location;
-            ClientSize = new(Common.Settings.ClipSize.Width + 30, Common.Settings.FormGeometry.Size.Height);
+            Location = UserSettings.Settings.FormGeometry.Location;
+            ClientSize = new(UserSettings.Settings.ClipSize.Width + 30, UserSettings.Settings.FormGeometry.Size.Height);
             WindowState = FormWindowState.Normal;
             //ShowInTaskbar = false;
             //Visible = false; // doesn't work
@@ -99,7 +98,7 @@ namespace WinClip
             var res = AddClipboardFormatListener(Handle);
 
             // Listen for hot keys.
-            AddHotKey(Common.Settings.HotKey);
+            AddHotKey(UserSettings.Settings.HotKey);
         }
 
         /// <summary>
@@ -110,7 +109,7 @@ namespace WinClip
             LogManager.Stop();
 
             // Save user settings.
-            Common.Settings.FormGeometry = new()
+            UserSettings.Settings.FormGeometry = new()
             {
                 X = Location.X,
                 Y = Location.Y,
@@ -118,7 +117,7 @@ namespace WinClip
                 Height = Height
             };
 
-            Common.Settings.Save();
+            UserSettings.Settings.Save();
 
             base.OnFormClosing(e);
         }
@@ -342,8 +341,8 @@ namespace WinClip
         {
             ClipDisplay clipd = new(clip)
             {
-                Width = Common.Settings.ClipSize.Width,
-                Height = Common.Settings.ClipSize.Height,
+                Width = UserSettings.Settings.ClipSize.Width,
+                Height = UserSettings.Settings.ClipSize.Height,
             };
 
             clipd.MouseClick += (sender, e) => { ClipClick(sender as ClipDisplay, true, e.Button); };
@@ -352,7 +351,7 @@ namespace WinClip
             Controls.Add(clipd);
 
             // Limit - remove tail(s).
-            while (_clips.Count > Common.Settings.MaxClips)
+            while (_clips.Count > UserSettings.Settings.MaxClips)
             {
                 var clipx = _clips.Last();
                 Controls.Remove(clipx);
@@ -393,7 +392,7 @@ namespace WinClip
             // Assign ordered locations.
             int xloc = 5;
             int yloc = btnDebug.Bottom + 5;
-            int yinc = Common.Settings.ClipSize.Height + 5;
+            int yinc = UserSettings.Settings.ClipSize.Height + 5;
 
             foreach (var cl in _clips)
             {
@@ -411,7 +410,7 @@ namespace WinClip
         /// </summary>
         void Settings_Click(object? sender, EventArgs e)
         {
-            var changes = SettingsEditor.Edit(Common.Settings, "User Settings", 450);
+            var changes = SettingsEditor.Edit(UserSettings.Settings, "User Settings", 450);
 
             // Detect changes of interest.
             if (changes.Any(ch => ch.name == "ClipSize" || ch.name == "DisplayFont"))
@@ -421,7 +420,7 @@ namespace WinClip
 
             UpdateFromSettings();
 
-            Common.Settings.Save();
+            UserSettings.Settings.Save();
         }
 
         /// <summary>
@@ -429,8 +428,8 @@ namespace WinClip
         /// </summary>
         void UpdateFromSettings()
         {
-            LogManager.MinLevelFile = Common.Settings.FileLogLevel;
-            LogManager.MinLevelNotif = Common.Settings.NotifLogLevel;
+            LogManager.MinLevelFile = UserSettings.Settings.FileLogLevel;
+            LogManager.MinLevelNotif = UserSettings.Settings.NotifLogLevel;
         }
         #endregion
 

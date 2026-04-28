@@ -40,7 +40,7 @@ namespace WinClip
             Id = _nextId++;
 
             // Default.
-            Thumbnail = new(Common.Settings.ClipSize.Width, Common.Settings.ClipSize.Height);
+            Thumbnail = new(UserSettings.Settings.ClipSize.Width, UserSettings.Settings.ClipSize.Height);
             using Graphics gr = Graphics.FromImage(Thumbnail);
             gr.Clear(Color.LightYellow);
         }
@@ -70,7 +70,7 @@ namespace WinClip
             {
                 BorderStyle = BorderStyle.None,
                 Rtf = rtf,
-                Size = Common.Settings.ClipSize,
+                Size = UserSettings.Settings.ClipSize,
                 ScrollBars = RichTextBoxScrollBars.None
             };
             Thumbnail = new Bitmap(rtb.Width, rtb.Height);
@@ -87,8 +87,8 @@ namespace WinClip
             {
                 BorderStyle = BorderStyle.None,
                 Text = text,
-                Size = Common.Settings.ClipSize,
-                Font = Common.Settings.DisplayFont,
+                Size = UserSettings.Settings.ClipSize,
+                Font = UserSettings.Settings.DisplayFont,
                 ScrollBars = RichTextBoxScrollBars.None
             };
             Thumbnail = new Bitmap(rtb.Width, rtb.Height);
@@ -135,7 +135,7 @@ namespace WinClip
             var sdata = data.GetData(TYPE_NAME);
             Content = (string)sdata!;
             _formats = [.. data.GetFormats()];
-            _shortText = Content.Left(Common.Settings.ShortTextLen);
+            _shortText = Content.Left(UserSettings.Settings.ShortTextLen);
             RenderText(_shortText);
             
             Thumbnail.Save("pt.png");
@@ -190,7 +190,7 @@ namespace WinClip
         {
             var sdata = data.GetData(TYPE_NAME);
             Content = (string)sdata!;
-            _shortText = RtfToText(Content).Left(Common.Settings.ShortTextLen);
+            _shortText = RtfToText(Content).Left(UserSettings.Settings.ShortTextLen);
             _formats = [.. data.GetFormats()];
             RenderRtf(Content);
             Thumbnail.Save("rtf.png");
@@ -243,9 +243,9 @@ namespace WinClip
             var idata = data.GetData(TYPE_NAME);
             Content = (Bitmap)idata!;
             // Make a thumbnail scaled to available real estate.
-            float ratio = (float)Common.Settings.ClipSize.Height / Content.Height;
+            float ratio = (float)UserSettings.Settings.ClipSize.Height / Content.Height;
             int tnWidth = (int)(Content.Width * ratio);
-            int tnHeight = Common.Settings.ClipSize.Height;
+            int tnHeight = UserSettings.Settings.ClipSize.Height;
             Thumbnail = Content.Resize(tnWidth, tnHeight);
             _formats = [.. data.GetFormats()];
         }
@@ -295,12 +295,12 @@ namespace WinClip
             }
 
             // Big X.
-            Thumbnail = new(Common.Settings.ClipSize.Width, Common.Settings.ClipSize.Height);
+            Thumbnail = new(UserSettings.Settings.ClipSize.Width, UserSettings.Settings.ClipSize.Height);
             using Graphics gr = Graphics.FromImage(Thumbnail);
             Pen pen = new(Color.Purple, 4);
             int pad = 8;
-            gr.DrawLine(pen, pad, pad, Common.Settings.ClipSize.Width - pad, Common.Settings.ClipSize.Height - pad);
-            gr.DrawLine(pen, pad, Common.Settings.ClipSize.Height - pad, Common.Settings.ClipSize.Width - pad, pad);
+            gr.DrawLine(pen, pad, pad, UserSettings.Settings.ClipSize.Width - pad, UserSettings.Settings.ClipSize.Height - pad);
+            gr.DrawLine(pen, pad, UserSettings.Settings.ClipSize.Height - pad, UserSettings.Settings.ClipSize.Width - pad, pad);
         }
 
         /// <inheritdoc />

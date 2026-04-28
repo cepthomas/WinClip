@@ -29,7 +29,7 @@ namespace WinClip
             ];
             btnClear.Click += (_, __) => tvInfo.Clear();
 
-            lblLetter.Text = Common.Settings.HotKey.Key;
+            lblLetter.Text = UserSettings.Settings.HotKey.Key;
 
             ///// Debug stuff
             //if (_debug)

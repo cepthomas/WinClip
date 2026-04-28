@@ -32,8 +32,8 @@ namespace WinClip
         {
             Clip = clip;
             BorderStyle = BorderStyle.FixedSingle;
-            Width = Common.Settings.ClipSize.Width;
-            Height = Common.Settings.ClipSize.Height;
+            Width = UserSettings.Settings.ClipSize.Width;
+            Height = UserSettings.Settings.ClipSize.Height;
         }
 
         /// <summary>

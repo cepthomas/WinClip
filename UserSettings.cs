@@ -13,6 +13,9 @@ namespace WinClip
     [Serializable]
     public sealed class UserSettings : SettingsCore
     {
+        /// <summary>Current global user settings.</summary>
+        public static UserSettings Settings { get; set; } = new UserSettings();
+
         [TypeConverter(typeof(ExpandableObjectConverter))]
         public HotKey HotKey { get; set; } = new();
 
