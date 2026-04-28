@@ -9,11 +9,14 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
 using System.Text;
+using System.Reflection;
 using Ephemera.NBagOfTricks;
 using Ephemera.NBagOfUis;
 using W32 = Ephemera.Win32.Internals;
 using WM = Ephemera.Win32.WindowManagement;
 
+
+// TODO! System.ExecutionEngineException
 
 namespace WinClip
 {
@@ -30,11 +33,8 @@ namespace WinClip
         /// <summary>All clips in the collection.</summary>
         readonly LinkedList<ClipDisplay> _clips = new();
 
-        /// <summary>Current foreground window handle.</summary>
-        IntPtr _currentWin = IntPtr.Zero;
-
-        /// <summary>Previous foreground window handle.</summary>
-        IntPtr _previousWin = IntPtr.Zero;
+        /// <summary>Where to paste.</summary>
+        IntPtr _pasteWin = IntPtr.Zero;
 
         /// <summary>Handle to the LL key hook.</summary>
         readonly IntPtr _hHook = IntPtr.Zero;
@@ -73,6 +73,9 @@ namespace WinClip
             LogManager.LogMessage += LogManager_LogMessage;
             LogManager.Run(logFileName, 100000);
             UpdateFromSettings();
+
+            //this.Icon = Icon. Properties.Resources.canard;
+            Icon = Icon.ExtractAssociatedIcon(Assembly.GetExecutingAssembly().Location);
 
             ///// Main form init.
             Location = Common.Settings.FormGeometry.Location;
@@ -323,7 +326,7 @@ namespace WinClip
             }
 
             // Send paste to the last window that was foreground, since this app is now fg. 
-            WM.ForegroundWindow = _previousWin;
+            WM.ForegroundWindow = _pasteWin;
             var fg = GetWindowInfo(WM.ForegroundWindow);
            _logger.Debug($"Paste to [{fg.ProcessName}]");
             SendKeys.Send("^{V}");
@@ -364,14 +367,20 @@ namespace WinClip
         {
             var winfo = GetWindowInfo(hwnd);
 
-            if (hwnd != _currentWin && winfo.IsVisible && winfo.ProcessName != "explorer")
+            if (winfo.IsVisible && winfo.ProcessName != "WinClip" && winfo.ProcessName != "explorer")
             {
-                _previousWin = _currentWin;
-                _currentWin = hwnd;
-
-                _dev.Tell($"Current: {GetWindowInfo(_currentWin).ProcessName}");
-                _dev.Tell($"Previous: {GetWindowInfo(_previousWin).ProcessName}");
+                _pasteWin = hwnd;
+                _dev.Tell($"_pasteWin: {GetWindowInfo(_pasteWin).ProcessName}");
             }
+
+            //var winfo = GetWindowInfo(hwnd);
+            //if (hwnd != _currentWin && winfo.IsVisible && winfo.ProcessName != "explorer")
+            //{
+            //    _previousWin = _currentWin;
+            //    _currentWin = hwnd;
+            //    _dev.Tell($"Current: {GetWindowInfo(_currentWin).ProcessName}");
+            //    _dev.Tell($"Previous: {GetWindowInfo(_previousWin).ProcessName}");
+            //}
         }
 
         #region Drawing
@@ -511,7 +520,7 @@ namespace WinClip
 
                 bool keyDown = wParam == W32.WM_KEYDOWN || wParam == W32.WM_SYSKEYDOWN;
                 bool keyUp = wParam == W32.WM_KEYUP || wParam == W32.WM_SYSKEYUP;
-                bool letterPressed = key == Keys.R) && keyDown;
+                bool letterPressed = key == Keys.R && keyDown;
                 bool winKey = (key == Keys.LWin || key == Keys.RWin) && keyDown;
                 bool ctrlKey = (key & Keys.Control) > 0 && keyDown;
                 bool altKey = (key & Keys.Alt) > 0 && keyDown;
