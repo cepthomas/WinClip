@@ -22,12 +22,7 @@ namespace WinClip
     {
         #region Properties
         /// <summary>What to show.</summary>
-        public ClipBase Clip { get { return _clip; } }
-        #endregion
-
-        #region Fields
-        /// <summary>The clip.</summary>
-        readonly ClipBase _clip;
+        public ClipBase Clip { get; init; }
         #endregion
 
         /// <summary>
@@ -35,10 +30,10 @@ namespace WinClip
         /// </summary>
         public ClipDisplay(ClipBase clip)
         {
-            _clip = clip;
+            Clip = clip;
             BorderStyle = BorderStyle.FixedSingle;
-            Width = ClipBase.DrawArea.Width;
-            Height = ClipBase.DrawArea.Height;
+            Width = Common.Settings.ClipSize.Width;
+            Height = Common.Settings.ClipSize.Height;
         }
 
         /// <summary>
@@ -48,8 +43,7 @@ namespace WinClip
         protected override void OnPaint(PaintEventArgs pe)
         {
             pe.Graphics.Clear(BackColor);
-            //pe.Graphics.DrawRectangle(Pens.Black, 5, 5, 100, 100);
-            pe.Graphics.DrawImage(Clip.Rendering, 0, 0, Clip.Rendering.Width, Clip.Rendering.Height);
+            pe.Graphics.DrawImage(Clip.Thumbnail, 0, 0, Clip.Thumbnail.Width, Clip.Thumbnail.Height);
         }
     }
 }

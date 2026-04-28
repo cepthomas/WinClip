@@ -23,19 +23,9 @@ namespace WinClip
     /// </summary>
     public partial class MainForm : Form
     {
-        #region Types
-        record struct WindowInfo(IntPtr Hwnd, string ProcessName, string Title, bool IsVisible, IntPtr Parent)
-        {
-            public override readonly string ToString() { return $"hwnd:0X{Hwnd:X8} proc:{ProcessName} title:{Title} vis:{IsVisible} parent:0X{Parent:X8}"; }
-        }
-        #endregion
-
         #region Fields
         /// <summary>App logger.</summary>
         readonly Logger _logger = LogManager.CreateLogger("APP");
-
-        /// <summary>The settings.</summary>
-        readonly UserSettings _settings;
 
         /// <summary>All clips in the collection.</summary>
         readonly LinkedList<ClipDisplay> _clips = new();
@@ -46,7 +36,7 @@ namespace WinClip
         /// <summary>Previous foreground window handle.</summary>
         IntPtr _previousWin = IntPtr.Zero;
 
-        /// <summary>Handle to the LL hook.</summary>
+        /// <summary>Handle to the LL key hook.</summary>
         readonly IntPtr _hHook = IntPtr.Zero;
 
         /// <summary>Handle to the window event hook.</summary>
@@ -55,15 +45,16 @@ namespace WinClip
         /// <summary>Manage resources.</summary>
         bool _disposed;
 
+        /// <summary>Dev.</summary>
+        Dev _dev = new();
 
-        int _clipHeight = 80;
-        int _clipWidth = 220;
-        bool _suppressClipboardUpdate = false;
-        int _lastClipboardSeq = -1;
-        /////// Hacks to work around win11 bug
+        #region Workarounds 
+        // win11 bug
         Size _lastBmpSize = new();
         DateTime _lastBmpTime = DateTime.Now;
-
+        // multiple identical messages
+        int _lastClipboardSeq = -1;
+        #endregion
         #endregion
 
         #region Lifecycle
@@ -77,36 +68,18 @@ namespace WinClip
 
             ///// Load settings and init logging.
             string appDir = MiscUtils.GetAppDataDir("WinClip", "Ephemera");
-            _settings = (UserSettings)SettingsCore.Load(appDir, typeof(UserSettings));
+            Common.Settings = (UserSettings)SettingsCore.Load(appDir, typeof(UserSettings));
             string logFileName = Path.Combine(appDir, "log.txt");
             LogManager.LogMessage += LogManager_LogMessage;
             LogManager.Run(logFileName, 100000);
             UpdateFromSettings();
 
-            ///// Main form init TODO.
+            ///// Main form init.
+            Location = Common.Settings.FormGeometry.Location;
+            ClientSize = new(Common.Settings.ClipSize.Width + 30, Common.Settings.FormGeometry.Size.Height);
+            WindowState = FormWindowState.Normal;
             //ShowInTaskbar = false;
-            //ShowInTaskbar = true;
-            //WindowState = FormWindowState.Minimized;
-            //StartPosition = FormStartPosition.Manual;
-
-            //Location = new(500, 100);
-            //Location = _settings.FormGeometry.Location;
-            //Size = _settings.FormGeometry.Size;
-            //Visible = false; // doesn't work - like C:\Dev\Misc\NLab\TrayExForm - use Minimized?
-
-            ClipBase.DrawArea = new(_clipWidth, _clipHeight);
-
-
-            ///// Init controls.
-            tvInfo.BackColor = Color.Cornsilk;
-            tvInfo.Matchers =
-            [
-                new("ERR ", Color.Red),
-                new("WRN ", Color.Green),
-            ];
-            btnClear.Click += (_, __) => tvInfo.Clear();
-
-            lblLetter.Text = _settings.HotKey.Key;
+            //Visible = false; // doesn't work
 
             ///// System hooks.
             // LL keyboard hook.
@@ -121,53 +94,9 @@ namespace WinClip
 
             // Listen for clipboard changes.
             var res = AddClipboardFormatListener(Handle);
-            //? if (!res) throw new InvalidOperationException("!!!!!!!!!!");
 
             // Listen for hot keys.
-            var hk = _settings.HotKey;
-            var key = hk.Key[0] & ~0x20; // make it UC   // high-order word
-            var mod = (hk.Ctrl ? W32.MOD_CTRL : 0) |  // low-order word
-                (hk.Alt ? W32.MOD_ALT : 0) |
-                (hk.Shift ? W32.MOD_SHIFT : 0) |
-                (hk.Win ? W32.MOD_WIN : 0);
-            W32.RegisterHotKey(Handle, key, mod);
-
-            ///// Debug stuff
-            var sdir = MiscUtils.GetSourcePath();
-            var clip1 = new PlainTextClip(new DataObject(File.ReadAllText(Path.Combine(sdir, "Test", "ross.txt"))));
-            AddOne(clip1);
-            var clip2 = new RtfTextClip(new DataObject(RtfTextClip.TYPE_NAME, (File.ReadAllText(Path.Combine(sdir, "Test", "ex.rtf")))));
-            AddOne(clip2);
-            var clip3 = new ImageClip(new DataObject(Bitmap.FromFile(Path.Combine(sdir, "Test", "ex.png"))));
-            AddOne(clip3);
-
-
-            void AddOne(ClipBase clip)
-            {
-                ClipDisplay clipd = new(clip);
-                clipd.MouseClick += (sender, e) => { ClipClick(sender as ClipDisplay, true, e.Button); };
-                clipd.MouseDoubleClick += (sender, e) => { ClipClick(sender as ClipDisplay, false, e.Button); };
-                _clips.AddLast(clipd);
-                Controls.Add(clipd);
-            }
-
-
-            // var clip = new RtfTextClip(new DataObject(rtf));
-            // var clip = new ImageClip(new DataObject(bmp));
-
-
-            // C:\Dev\Apps\WinClip\Test\ex.png
-            // C:\Dev\Apps\WinClip\Test\ex.rtf
-            // C:\Dev\Apps\WinClip\Test\ross.txt
-
-
-
-            //for (int i = 0; i < 4; i++)
-            //{
-            //    var s = $"---{i}--- Nice little clouds playing around in the sky. I'm sort of a softy, I couldn't shoot Bambi except with a camera. We artists are a different breed of people.";
-            //    var clip = new PlainTextClip(new DataObject(s));
-            //    AddOne(clip);
-            //}
+            AddHotKey(Common.Settings.HotKey);
         }
 
         /// <summary>
@@ -178,15 +107,15 @@ namespace WinClip
             LogManager.Stop();
 
             // Save user settings.
-            _settings.FormGeometry = new()
+            Common.Settings.FormGeometry = new()
             {
-               X = Location.X,
-               Y = Location.Y,
-               Width = Width,
-               Height = Height
+                X = Location.X,
+                Y = Location.Y,
+                Width = Width,
+                Height = Height
             };
 
-            _settings.Save();
+            Common.Settings.Save();
 
             base.OnFormClosing(e);
         }
@@ -229,8 +158,6 @@ namespace WinClip
                 case W32.WM_CLIPBOARDUPDATE: // clipboard contents have changed
                     //_logger.Debug($"WM_CLIPBOARDUPDATE suppress:{_suppressClipboardUpdate}");
                     DoClipboardUpdate(msg);
-                    // reset
-                    _suppressClipboardUpdate = false;
                     msg.Result = -1; // means handled?
                     break;
 
@@ -259,11 +186,9 @@ namespace WinClip
                 try
                 {
                     IDataObject? dobj = Clipboard.GetDataObject();
-                    //var tst = DateTime.Now.ToString("HH':'mm':'ss.fff");
+                    // var tst = DateTime.Now.ToString("HH':'mm':'ss.fff");
 
-                    //Sometimes we get multiples of the same message. Ignore subsequent of the same seq num.
-                    //The usual mitigation strategy is to avoid reacting to every update, and react to the LAST
-                    //update after a reasonable "settle time" has elapsed with no further clipboard notifications.
+                    // Sometimes we get multiples of the same message. Ignore subsequent of the same seq num.
                     var seq = GetClipboardSequenceNumber();
                     if (seq == _lastClipboardSeq)
                     {
@@ -285,7 +210,7 @@ namespace WinClip
                             // https://learn.microsoft.com/en-us/answers/questions/5831588/there-are-two-copies-of-the-screenshot-in-the-clip
                             TimeSpan ts = DateTime.Now - _lastBmpTime;
                             // _logger.Debug($"ts:{ts}");
-                            int cutoff = 250; // measured like 60 msec
+                            int cutoff = 250; // measured is max 60 msec
 
                             var img = dobj.GetData(ImageClip.TYPE_NAME);
                             var bmp = img as Bitmap;
@@ -295,7 +220,7 @@ namespace WinClip
                                 // Not the same so assume valid.
                                 clip = new ImageClip(dobj);
                             }
-                            //else suspect, wait
+                            //else a suspect, wait
 
                             // Reset state.
                             _lastBmpTime = DateTime.Now;
@@ -309,29 +234,13 @@ namespace WinClip
                         {
                             clip = new PlainTextClip(dobj);
                         }
-                        else
-                        {
-                            // TODO error?
-                        }
+                        // else ignore
 
                         if (clip != null)
                         {
                             // Show it.
-                            ClipDisplay clipd = new(clip);
+                            AddClip(clip);
                             //_logger.Debug($"New clip:{clip}");
-                            clipd.MouseClick += (sender, e) => { ClipClick(sender as ClipDisplay, true, e.Button); };
-                            clipd.MouseDoubleClick += (sender, e) => { ClipClick(sender as ClipDisplay, false, e.Button); };
-                            _clips.AddFirst(clipd);
-                            Controls.Add(clipd);
-
-                            // Limit - remove tail(s).
-                            while (_clips.Count > _settings.MaxClips)
-                            {
-                                var clipx = _clips.Last();
-                                Controls.Remove(clipx);
-                                _clips.Remove(clipx);
-                            }
-
                             Invalidate();
                         }
 
@@ -339,24 +248,41 @@ namespace WinClip
                     }
                     else
                     {
-                        _logger.Warn($"GetDataObject() is null");
+                        // _logger.Warn($"GetDataObject() is null");
                         retries--;
+                        Thread.Sleep(50);
                     }
                 }
                 catch (ExternalException ex)
                 {
-                    // Retry: Data could not be retrieved from the Clipboard.
-                    // This typically occurs when the Clipboard is being used by another process.
-                    _logger.Warn($"WM_DRAWCLIPBOARD ExternalException:{ex}");
+                    // _logger.Warn($"WM_DRAWCLIPBOARD ExternalException:{ex}");
                     retries--;
                     Thread.Sleep(50);
                 }
                 catch (Exception ex)
                 {
-                    _logger.Error($"WM_DRAWCLIPBOARD Exception:{ex}");
+                    _logger.Error($"Other exception:{ex}");
                     retries = 0;
                 }
             }
+        }
+
+        /// <summary>
+        /// Handle hotkey messages.
+        /// </summary>
+        /// <param name="m"></param>
+        void DoHotkey(Message m)
+        {
+            // Could decode if we needed to handle more than one.
+
+            // Get current window.
+            var fgi = GetWindowInfo(WM.ForegroundWindow);
+            _logger.Debug($">>> WM_HOTKEY_MESSAGE_ID {fgi}");
+
+            // Show UI to let user pick a clip to paste.
+            WindowState = FormWindowState.Normal;
+
+            m.Result = -1; // means handled?
         }
 
         /// <summary>
@@ -377,7 +303,6 @@ namespace WinClip
             _clips.Remove(clipd);
 
             // Push into sys clipboard which will move it to the top.
-            _suppressClipboardUpdate = true;
             switch (clipd.Clip)
             {
                 case PlainTextClip pcltxt:
@@ -393,7 +318,7 @@ namespace WinClip
                     break;
 
                 default:
-                    _logger.Error("TODO error");
+                    // Ignore the impossible.
                     break;
             }
 
@@ -404,6 +329,32 @@ namespace WinClip
             SendKeys.Send("^{V}");
 
             Invalidate();
+        }
+
+        /// <summary>
+        /// Add a new clip for viewing.
+        /// </summary>
+        /// <param name="clip"></param>
+        void AddClip(ClipBase clip)
+        {
+            ClipDisplay clipd = new(clip)
+            {
+                Width = Common.Settings.ClipSize.Width,
+                Height = Common.Settings.ClipSize.Height,
+            };
+
+            clipd.MouseClick += (sender, e) => { ClipClick(sender as ClipDisplay, true, e.Button); };
+            clipd.MouseDoubleClick += (sender, e) => { ClipClick(sender as ClipDisplay, false, e.Button); };
+            _clips.AddFirst(clipd);
+            Controls.Add(clipd);
+
+            // Limit - remove tail(s).
+            while (_clips.Count > Common.Settings.MaxClips)
+            {
+                var clipx = _clips.Last();
+                Controls.Remove(clipx);
+                _clips.Remove(clipx);
+            }
         }
 
         /// <summary>
@@ -418,8 +369,8 @@ namespace WinClip
                 _previousWin = _currentWin;
                 _currentWin = hwnd;
 
-                txtCurrentWin.Text = $"{GetWindowInfo(_currentWin).ProcessName}";
-                txtPreviousWin.Text = $"{GetWindowInfo(_previousWin).ProcessName}";
+                _dev.Tell($"Current: {GetWindowInfo(_currentWin).ProcessName}");
+                _dev.Tell($"Previous: {GetWindowInfo(_previousWin).ProcessName}");
             }
         }
 
@@ -432,8 +383,8 @@ namespace WinClip
         {
             // Assign ordered locations.
             int xloc = 5;
-            int yloc = 5;
-            int yinc = _clipHeight + 5;
+            int yloc = btnDebug.Bottom + 5;
+            int yinc = Common.Settings.ClipSize.Height + 5;
 
             foreach (var cl in _clips)
             {
@@ -451,22 +402,17 @@ namespace WinClip
         /// </summary>
         void Settings_Click(object? sender, EventArgs e)
         {
-            var changes = SettingsEditor.Edit(_settings, "User Settings", 450);
+            var changes = SettingsEditor.Edit(Common.Settings, "User Settings", 450);
 
             // Detect changes of interest.
-            bool restart = false;
-            foreach (var (name, cat) in changes)
-            {
-            }
-
-            if (restart)
+            if (changes.Any(ch => ch.name == "ClipSize" || ch.name == "DisplayFont"))
             {
                 MessageBox.Show("Restart required for device changes to take effect");
             }
 
             UpdateFromSettings();
 
-            _settings.Save();
+            Common.Settings.Save();
         }
 
         /// <summary>
@@ -474,12 +420,12 @@ namespace WinClip
         /// </summary>
         void UpdateFromSettings()
         {
-            LogManager.MinLevelFile = _settings.FileLogLevel;
-            LogManager.MinLevelNotif = _settings.NotifLogLevel;
+            LogManager.MinLevelFile = Common.Settings.FileLogLevel;
+            LogManager.MinLevelNotif = Common.Settings.NotifLogLevel;
         }
         #endregion
 
-        #region Private
+        #region Misc
         /// <summary>
         /// 
         /// </summary>
@@ -487,11 +433,41 @@ namespace WinClip
         /// <param name="e"></param>
         void LogManager_LogMessage(object? sender, LogMessageEventArgs e)
         {
-            this.InvokeIfRequired(_ => tvInfo.Append(e.Message));
+            this.InvokeIfRequired(_ => _dev.Tell(e.Message));
+        }
+
+        /// <summary>Do debug stuff.</summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        void Debug_Click(object sender, EventArgs e)
+        {
+            _dev.Show();
+            for (int i = 0; i < 3; i++)
+            {
+                var sdir = MiscUtils.GetSourcePath();
+                var fn = Path.Combine(sdir, "Test", "ross.txt");
+                AddClip(new PlainTextClip(new DataObject(File.ReadAllText(fn))));
+                fn = Path.Combine(sdir, "Test", "ex.rtf");
+                AddClip(new RtfTextClip(new DataObject(RtfTextClip.TYPE_NAME, (File.ReadAllText(fn)))));
+                fn = Path.Combine(sdir, "Test", "ex.png");
+                AddClip(new ImageClip(new DataObject(Bitmap.FromFile(fn))));
+            }
+
+            // foreach (var clipd in _clips)
+            // {
+            //     _dev.Tell(clipd.Clip.Format());
+            // }
+
+            //List<IntPtr> appwins = WM.GetTopWindows(false);
+            //foreach (IntPtr appwin in appwins)
+            //{
+            //    var winfo = GetWindowInfo(appwin);
+            //    tvInfo.Append(winfo.ToString());
+            //}
         }
 
         /// <summary>
-        /// Get pertinent bits of info for a window. TODO put in common?
+        /// Get pertinent bits of info for a window. TODO put in nbot/nbui?
         /// </summary>
         /// <param name="hwnd">If 0, my process</param>
         WindowInfo GetWindowInfo(IntPtr hwnd = 0)
@@ -504,23 +480,56 @@ namespace WinClip
             return winfo;
         }
 
-        /// <summary>Do debug stuff.</summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        void Debug_Click(object sender, EventArgs e)
+        /// <summary>
+        /// 
+        /// </summary>
+        void AddHotKey(HotKey hk) // TODO put in nbot/nbui?
         {
-            foreach (var clipd in _clips)
+            // Listen for hot keys.
+            var key = hk.Key[0] & ~0x20; // make it UC   // high-order word
+            var mod = (hk.Ctrl ? W32.MOD_CTRL : 0) |  // low-order word
+                (hk.Alt ? W32.MOD_ALT : 0) |
+                (hk.Shift ? W32.MOD_SHIFT : 0) |
+                (hk.Win ? W32.MOD_WIN : 0);
+            W32.RegisterHotKey(Handle, key, mod);
+        }
+
+        /// <summary>
+        /// Low level keyboard hook function. TODO useful?? put in NDev if not.
+        /// </summary>
+        /// <param name="code">Virtual-key code in the range 1 to 254. If less than zero, pass the message to the CallNextHookEx function without further processing.</param>
+        /// <param name="wParam">One of the following messages: WM_KEYDOWN WM_KEYUP WM_SYSKEYDOWN WM_SYSKEYUP.</param>
+        /// <param name="lParam">Pointer to a KBDLLHOOKSTRUCT structure.</param>
+        /// <returns>Return value from call to next in chain or >0 for handled locally</returns>
+        int KeyboardHookProc(int code, int wParam, ref W32.KBDLLHOOKSTRUCT lParam)
+        {
+            bool handled = false;
+
+            if (code >= 0)
             {
-                tvInfo.Append(clipd.Clip.Format());
+                Keys key = (Keys)lParam.vkCode;
+
+                bool keyDown = wParam == W32.WM_KEYDOWN || wParam == W32.WM_SYSKEYDOWN;
+                bool keyUp = wParam == W32.WM_KEYUP || wParam == W32.WM_SYSKEYUP;
+                bool letterPressed = key == Keys.R) && keyDown;
+                bool winKey = (key == Keys.LWin || key == Keys.RWin) && keyDown;
+                bool ctrlKey = (key & Keys.Control) > 0 && keyDown;
+                bool altKey = (key & Keys.Alt) > 0 && keyDown;
             }
 
-            //List<IntPtr> appwins = WM.GetTopWindows(false);
-            //foreach (IntPtr appwin in appwins)
-            //{
-            //    var winfo = GetWindowInfo(appwin);
-            //    tvInfo.Append(winfo.ToString());
-            //}
+            if (handled)
+            {
+                // If the hook procedure processed the message, it may return a nonzero value to prevent
+                // the system from passing the message to the rest of the hook chain or the target window procedure.
+                return 1;
+            }
+            else
+            {
+                // Pass along chain.
+                return W32.CallNextHookEx(_hHook, code, wParam, ref lParam);
+            }
         }
+
         #endregion
 
         #region Native
@@ -549,81 +558,22 @@ namespace WinClip
         [DllImport("user32.dll")]
         private static extern uint GetClipboardSequenceNumber();
         #endregion
-
-
-
-
-        #region TODO these useful?? put in NDev if not. ///////////////////////////////
-
-        //IntPtr _fg;
-
-        /// <summary>
-        /// Handle hotkey messages.
-        /// </summary>
-        /// <param name="m"></param>
-        void DoHotkey(Message m)
-        {
-            // m.HWnd  A handle to the window whose window procedure receives the message - not sender!
-            // This member is NULL when the message is a thread message.
-
-            // Could decode if we needed to handle more than one.
-
-            //// Get current window.
-            //_fg = WM.ForegroundWindow;
-            //var fgi = GetWindowInfo(_fg);
-            //_logger.Debug($">>> WM_HOTKEY_MESSAGE_ID {fgi}");
-
-            //// Show UI to let user pick a clip to paste.
-            //WindowState = FormWindowState.Normal;
-
-            m.Result = -1; // means handled?
-        }
-
-        /// <summary>
-        /// Low level keyboard hook function.
-        /// </summary>
-        /// <param name="code">Virtual-key code in the range 1 to 254. If less than zero, pass the message to the CallNextHookEx function without further processing.</param>
-        /// <param name="wParam">One of the following messages: WM_KEYDOWN WM_KEYUP WM_SYSKEYDOWN WM_SYSKEYUP.</param>
-        /// <param name="lParam">Pointer to a KBDLLHOOKSTRUCT structure.</param>
-        /// <returns>Return value from call to next in chain or >0 for handled locally</returns>
-        int KeyboardHookProc(int code, int wParam, ref W32.KBDLLHOOKSTRUCT lParam)
-        {
-            bool handled = false;
-
-            if (code >= 0)// && code < 255)
-            {
-                Keys key = (Keys)lParam.vkCode;
-
-                //lParam.scanCode
-
-                bool keyDown = wParam == W32.WM_KEYDOWN || wParam == W32.WM_SYSKEYDOWN;
-                bool keyUp = wParam == W32.WM_KEYUP || wParam == W32.WM_SYSKEYUP;
-                bool letterPressed = (key.ToString() == lblLetter.Text) && keyDown;
-                bool winKey = (key == Keys.LWin || key == Keys.RWin) && keyDown;
-                bool ctrlKey = (key & Keys.Control) > 0 && keyDown;
-                bool altKey = (key & Keys.Alt) > 0 && keyDown;
-
-                // Diagnostics.
-                lblCtrl.BackColor = ctrlKey ? Color.LimeGreen : SystemColors.Control;
-                lblAlt.BackColor = altKey ? Color.LimeGreen : SystemColors.Control;
-                lblWin.BackColor = winKey ? Color.LimeGreen : SystemColors.Control;
-                lblLetter.BackColor = letterPressed ? Color.LimeGreen : SystemColors.Control;
-            }
-
-            if (handled)
-            {
-                // If the hook procedure processed the message, it may return a nonzero value to prevent
-                // the system from passing the message to the rest of the hook chain or the target window procedure.
-                return 1;
-            }
-            else
-            {
-                // Pass along chain.
-                return W32.CallNextHookEx(_hHook, code, wParam, ref lParam);
-            }
-        }
-        #endregion
-
-
     }
+
+    #region Types
+    [Serializable]
+    public sealed class HotKey
+    {
+        public string Key { get; set; } = "?";
+        public bool Ctrl { get; set; } = false;
+        public bool Alt { get; set; } = false;
+        public bool Shift { get; set; } = false;
+        public bool Win { get; set; } = false;
+    }
+
+    record struct WindowInfo(IntPtr Hwnd, string ProcessName, string Title, bool IsVisible, IntPtr Parent)
+    {
+        public override readonly string ToString() { return $"hwnd:0X{Hwnd:X8} proc:{ProcessName} title:{Title} vis:{IsVisible} parent:0X{Parent:X8}"; }
+    };
+    #endregion
 }

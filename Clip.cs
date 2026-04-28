@@ -12,7 +12,6 @@ using Ephemera.NBagOfTricks;
 using Ephemera.NBagOfUis;
 
 
-
 namespace WinClip
 {
     /// <summary>Abstract base class for all clips.</summary>
@@ -24,21 +23,15 @@ namespace WinClip
         public int Id { get;  } = -1;
 
         /// <summary>For display.</summary>
-        public Bitmap Rendering { get; protected set; }
-
-        /// <summary>For rendering. Set this global before creating clips!</summary>
-        public static Size DrawArea { get; set; }
+        public Bitmap Thumbnail { get; protected set; }
         #endregion
 
         #region Fields
         /// <summary>Assign ids.</summary>
         static int _nextId = 1;
 
-        /// <summary>Original formats supported.</summary>
+        /// <summary>Clipboard formats supported.</summary>
         protected List<string> _formats = [];
-
-        /// <summary>TODO configurable or calculated.</summary>
-        protected const int _shortTextLen = 32;
         #endregion
 
         /// <summary>Constructor</summary>
@@ -47,8 +40,8 @@ namespace WinClip
             Id = _nextId++;
 
             // Default.
-            Rendering = new(DrawArea.Width, DrawArea.Height);
-            using Graphics gr = Graphics.FromImage(Rendering);
+            Thumbnail = new(Common.Settings.ClipSize.Width, Common.Settings.ClipSize.Height);
+            using Graphics gr = Graphics.FromImage(Thumbnail);
             gr.Clear(Color.LightYellow);
         }
 
@@ -66,7 +59,7 @@ namespace WinClip
         public abstract IDataObject? ToData();
         #endregion
 
-        #region Conversion utilities
+        #region Conversion utilities TODO put in nbot/nbui?
         /// <summary>
         /// Make a bitmap from text.
         /// </summary>
@@ -77,10 +70,11 @@ namespace WinClip
             {
                 BorderStyle = BorderStyle.None,
                 Rtf = rtf,
-                Size = DrawArea
+                Size = Common.Settings.ClipSize,
+                ScrollBars = RichTextBoxScrollBars.None
             };
-            Rendering = new Bitmap(DrawArea.Width, DrawArea.Height);
-            rtb.DrawToBitmap(Rendering, new Rectangle(0, 0, DrawArea.Width, DrawArea.Height));
+            Thumbnail = new Bitmap(rtb.Width, rtb.Height);
+            rtb.DrawToBitmap(Thumbnail, new Rectangle(0, 0, rtb.Width, rtb.Height));
         }
 
         /// <summary>
@@ -93,10 +87,12 @@ namespace WinClip
             {
                 BorderStyle = BorderStyle.None,
                 Text = text,
-                Size = DrawArea
+                Size = Common.Settings.ClipSize,
+                Font = Common.Settings.DisplayFont,
+                ScrollBars = RichTextBoxScrollBars.None
             };
-            Rendering = new Bitmap(DrawArea.Width, DrawArea.Height);
-            rtb.DrawToBitmap(Rendering, new Rectangle(0, 0, DrawArea.Width, DrawArea.Height));
+            Thumbnail = new Bitmap(rtb.Width, rtb.Height);
+            rtb.DrawToBitmap(Thumbnail, new Rectangle(0, 0, rtb.Width, rtb.Height));
         }
 
         /// <summary>
@@ -136,10 +132,13 @@ namespace WinClip
         /// <param name="data"></param>
         public PlainTextClip(IDataObject data)
         {
-            Content = (string)data.GetData(TYPE_NAME);
+            var sdata = data.GetData(TYPE_NAME);
+            Content = (string)sdata!;
             _formats = [.. data.GetFormats()];
-            _shortText = Content.Left(_shortTextLen);
+            _shortText = Content.Left(Common.Settings.ShortTextLen);
             RenderText(_shortText);
+            
+            Thumbnail.Save("pt.png");
         }
 
         /// <inheritdoc />
@@ -189,10 +188,12 @@ namespace WinClip
         /// <param name="data"></param>
         public RtfTextClip(IDataObject data)
         {
-            Content = (string)data.GetData(TYPE_NAME);
-            _shortText = RtfToText(Content).Left(_shortTextLen);
+            var sdata = data.GetData(TYPE_NAME);
+            Content = (string)sdata!;
+            _shortText = RtfToText(Content).Left(Common.Settings.ShortTextLen);
             _formats = [.. data.GetFormats()];
             RenderRtf(Content);
+            Thumbnail.Save("rtf.png");
         }
 
         /// <inheritdoc />
@@ -239,13 +240,13 @@ namespace WinClip
         /// <param name="data"></param>
         public ImageClip(IDataObject data)
         {
-            Content = (Bitmap)data.GetData(TYPE_NAME);
+            var idata = data.GetData(TYPE_NAME);
+            Content = (Bitmap)idata!;
             // Make a thumbnail scaled to available real estate.
-            float ratio = (float)DrawArea.Height / Content.Height;
+            float ratio = (float)Common.Settings.ClipSize.Height / Content.Height;
             int tnWidth = (int)(Content.Width * ratio);
-            int tnHeight = DrawArea.Height;
-            Rendering = Content.Resize(tnWidth, tnHeight);
-            //Rendering.Save("out.png");
+            int tnHeight = Common.Settings.ClipSize.Height;
+            Thumbnail = Content.Resize(tnWidth, tnHeight);
             _formats = [.. data.GetFormats()];
         }
 
@@ -278,7 +279,7 @@ namespace WinClip
     public class DefaultClip : ClipBase
     {
         #region Fields
-        IDataObject? _data = null;
+        readonly IDataObject? _data = null;
         #endregion
 
         /// <summary>
@@ -290,18 +291,16 @@ namespace WinClip
             _data = data;
             if (_data is not null)
             {
-                _formats = _data.GetFormats().ToList();
+                _formats = [.. _data.GetFormats()];
             }
 
             // Big X.
-            Rendering = new(DrawArea.Width, DrawArea.Height);
-            using (Graphics gr = Graphics.FromImage(Rendering))
-            {
-                Pen pen = new(Color.Purple, 4);
-                int pad = 8;
-                gr.DrawLine(pen, pad, pad, DrawArea.Width - pad, DrawArea.Height - pad);
-                gr.DrawLine(pen, pad, DrawArea.Height - pad, DrawArea.Width - pad, pad);
-            }
+            Thumbnail = new(Common.Settings.ClipSize.Width, Common.Settings.ClipSize.Height);
+            using Graphics gr = Graphics.FromImage(Thumbnail);
+            Pen pen = new(Color.Purple, 4);
+            int pad = 8;
+            gr.DrawLine(pen, pad, pad, Common.Settings.ClipSize.Width - pad, Common.Settings.ClipSize.Height - pad);
+            gr.DrawLine(pen, pad, Common.Settings.ClipSize.Height - pad, Common.Settings.ClipSize.Width - pad, pad);
         }
 
         /// <inheritdoc />
