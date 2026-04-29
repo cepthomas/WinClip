@@ -16,7 +16,16 @@ using W32 = Ephemera.Win32.Internals;
 using WM = Ephemera.Win32.WindowManagement;
 
 
-// TODO! System.ExecutionEngineException
+// TODO! System.ExecutionEngineException - previously indicated an unspecified fatal error in the runtime.
+//  The runtime no longer raises this exception so this type is obsolete.
+// Calling the Environment.FailFast method to terminate execution of an application running in the
+//   Visual Studio debugger throws an ExecutionEngineException and automatically triggers the
+//   fatalExecutionEngineError managed debugging assistant (MDA).
+// The System.ExecutionEngineException occurs in the most projects of the solution
+//   if we try edit&continue.
+// I tried to disable all Hot Reload related stuff
+
+
 
 namespace WinClip
 {
@@ -175,7 +184,7 @@ namespace WinClip
         }
 
         /// <summary>
-        /// Handle external clip updates.
+        /// Handle external clip copy ops.
         /// </summary>
         /// <param name="msg"></param>
         void DoClipboardUpdate(Message msg)
@@ -204,6 +213,7 @@ namespace WinClip
                         ClipBase? clip = null;
 
                         var fmts = dobj.GetFormats();
+                        _dev.Tell($"Copy op: {string.Join("|", fmts)}");
                         if (fmts.Contains(ImageClip.TYPE_NAME))
                         {
                             // Hacks to work around win11 bug in KB5079473 that causes system Print Screen to generate
@@ -324,10 +334,20 @@ namespace WinClip
                     break;
             }
 
-            // Send paste to the last window that was foreground, since this app is now fg. 
+            // Send paste to the last window that was foreground, since this app is now fg.
+
+            // https://stackoverflow.com/questions/62966320/setforegroundwindow-not-setting-focus
+
+            // https://learn.microsoft.com/en-us/dotnet/api/microsoft.visualbasic.interaction.appactivate?view=net-10.0
+            // AppActivate(int ProcessId);
+            // AppActivate("Untitled - Notepad")
+            // Namespace: Microsoft.VisualBasic
+
             WM.ForegroundWindow = _pasteWin;
             var fg = GetWindowInfo(WM.ForegroundWindow);
-           _logger.Debug($"Paste to [{fg.ProcessName}]");
+            _logger.Debug($"Paste to {WM.ForegroundWindow} [{fg.ProcessName}]");
+
+
             SendKeys.Send("^{V}");
 
             Invalidate();
@@ -369,7 +389,7 @@ namespace WinClip
             if (winfo.IsVisible && winfo.ProcessName != "WinClip" && winfo.ProcessName != "explorer")
             {
                 _pasteWin = hwnd;
-                _dev.Tell($"_pasteWin: {GetWindowInfo(_pasteWin).ProcessName}");
+                _dev.Tell($"Set _pasteWin: {_pasteWin} [{GetWindowInfo(_pasteWin).ProcessName}]");
             }
 
             //var winfo = GetWindowInfo(hwnd);
@@ -475,7 +495,7 @@ namespace WinClip
         }
 
         /// <summary>
-        /// Get pertinent bits of info for a window. TODO put in nbot/nbui?
+        /// Get pertinent bits of info for a window.
         /// </summary>
         /// <param name="hwnd">If 0, my process</param>
         WindowInfo GetWindowInfo(IntPtr hwnd = 0)
@@ -491,7 +511,7 @@ namespace WinClip
         /// <summary>
         /// 
         /// </summary>
-        void AddHotKey(HotKey hk) // TODO put in nbot/nbui?
+        void AddHotKey(HotKey hk)
         {
             // Listen for hot keys.
             var key = hk.Key[0] & ~0x20; // make it UC   // high-order word
@@ -503,7 +523,7 @@ namespace WinClip
         }
 
         /// <summary>
-        /// Low level keyboard hook function. TODO useful?? put in NDev if not.
+        /// Low level keyboard hook function. Useful?? put in NDev/or? if not.
         /// </summary>
         /// <param name="code">Virtual-key code in the range 1 to 254. If less than zero, pass the message to the CallNextHookEx function without further processing.</param>
         /// <param name="wParam">One of the following messages: WM_KEYDOWN WM_KEYUP WM_SYSKEYDOWN WM_SYSKEYUP.</param>

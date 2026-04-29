@@ -59,7 +59,7 @@ namespace WinClip
         public abstract IDataObject? ToData();
         #endregion
 
-        #region Conversion utilities TODO put in nbot/nbui?
+        #region Conversion utilities
         /// <summary>
         /// Make a bitmap from text.
         /// </summary>
@@ -121,7 +121,7 @@ namespace WinClip
         #endregion
 
         #region Fields
-        // Formats: System.String, UnicodeText, Text
+        // Typical: System.String, UnicodeText, Text
         public const string TYPE_NAME = "System.String";
         public string _shortText;
         #endregion
@@ -176,8 +176,13 @@ namespace WinClip
         #endregion
 
         #region Fields
-        // Formats: Rich Text Format, Rich Text Format Without Objects, RTF As Text, System.String,
+        // Typical: Rich Text Format, Rich Text Format Without Objects, RTF As Text, System.String,
         //     UnicodeText, Text, RichEdit Binary, EnterpriseDataProtectionId
+        // Copy from word rtf: Object Descriptor, Rich Text Format, HTML Format, System.String, UnicodeText,
+        //     Text, EnhancedMetafile, MetaFilePict, Embed Source, Link Source, Link Source Descriptor,
+        //     ObjectLink, Hyperlink
+        // Copy from VS editor: Rich Text Format, VS Original Clipboard Text Format, System.String,
+        //     UnicodeText, Text
         public const string TYPE_NAME = "Rich Text Format";
         public string _shortText;
         #endregion
@@ -230,7 +235,10 @@ namespace WinClip
         #endregion
 
         #region Fields
-        // Formats: Preferred DropEffect, System.Drawing.Bitmap, Bitmap, PNG
+        // Typical: Preferred DropEffect, System.Drawing.Bitmap, Bitmap, PNG
+        // Copy from irfanview png/jpg: DeviceIndependentBitmap, System.Drawing.Bitmap, Bitmap, Format17
+        // Copy from word imageg: Art::GVML ClipFormat, System.Drawing.Bitmap, Bitmap, PNG, JFIF, GIF,
+        //    EnhancedMetafile, MetaFilePict, Object Descriptor
         public const string TYPE_NAME = "System.Drawing.Bitmap";
         #endregion
 

@@ -4,6 +4,7 @@ Yet another clipboard manager.
 
 Very much a WIP...
 
+Migrate parts to NBOT/NBUI?
 
 # Notes
 Defaults:
