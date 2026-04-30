@@ -16,15 +16,14 @@ using W32 = Ephemera.Win32.Internals;
 using WM = Ephemera.Win32.WindowManagement;
 
 
-// TODO! System.ExecutionEngineException - previously indicated an unspecified fatal error in the runtime.
-//  The runtime no longer raises this exception so this type is obsolete.
-// Calling the Environment.FailFast method to terminate execution of an application running in the
+// TODO - Frequently throws System.ExecutionEngineException. Previously indicated
+// an unspecified fatal error in the runtime. MS says: The runtime no longer raises
+// this exception so this type is obsolete.
+// Other gleanings:
+//   - Calling the Environment.FailFast method to terminate execution of an application running in the
 //   Visual Studio debugger throws an ExecutionEngineException and automatically triggers the
 //   fatalExecutionEngineError managed debugging assistant (MDA).
-// The System.ExecutionEngineException occurs in the most projects of the solution
-//   if we try edit&continue.
-// I tried to disable all Hot Reload related stuff
-
+//   - Try disable hot reload/edit & continue.
 
 
 namespace WinClip
@@ -45,11 +44,8 @@ namespace WinClip
         /// <summary>Where to paste.</summary>
         IntPtr _pasteWin = IntPtr.Zero;
 
-        /// <summary>Handle to the LL key hook.</summary>
-        readonly IntPtr _hHook = IntPtr.Zero;
-
         /// <summary>Handle to the window event hook.</summary>
-        readonly IntPtr _windowEventHook = IntPtr.Zero;
+        readonly IntPtr _winEventHook = IntPtr.Zero;
 
         /// <summary>Manage resources.</summary>
         bool _disposed;
@@ -93,21 +89,13 @@ namespace WinClip
             //Visible = false; // doesn't work
 
             ///// System hooks.
-            // LL keyboard hook.
-            using Process process = Process.GetCurrentProcess();
-            IntPtr hModule = W32.GetModuleHandle(process.MainModule!.ModuleName!);
-            _hHook = W32.SetWindowsHookEx(W32.WH_KEYBOARD_LL, KeyboardHookProc, hModule, 0);
-
             // Listen for window changes.
-            _windowEventHook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, IntPtr.Zero,
+            _winEventHook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, IntPtr.Zero,
                 WindowEventCallback, 0, 0, WINEVENT_OUTOFCONTEXT); // | WINEVENT_SKIPOWNPROCESS);
-            if (_windowEventHook == IntPtr.Zero) { throw new Win32Exception(Marshal.GetLastWin32Error()); }
+            if (_winEventHook == IntPtr.Zero) { throw new Win32Exception(Marshal.GetLastWin32Error()); }
 
             // Listen for clipboard changes.
             var res = AddClipboardFormatListener(Handle);
-
-            // Listen for hot keys.
-            AddHotKey(UserSettings.Settings.HotKey);
         }
 
         /// <summary>
@@ -146,8 +134,7 @@ namespace WinClip
 
             // Release unmanaged resources, set large fields to null.
             RemoveClipboardFormatListener(Handle);
-            W32.UnhookWindowsHookEx(_hHook);
-            UnhookWinEvent(_windowEventHook);
+            UnhookWinEvent(_winEventHook);
 
             _disposed = true;
 
@@ -161,9 +148,6 @@ namespace WinClip
         /// <param name="msg"></param>
         protected override void WndProc(ref Message msg)
         {
-            // m.HWnd  A handle to the window whose window procedure receives the message - not sender!
-            // This member is NULL when the message is a thread message.
-
             switch (msg.Msg)
             {
                 case W32.WM_CLIPBOARDUPDATE: // clipboard contents have changed
@@ -334,20 +318,12 @@ namespace WinClip
                     break;
             }
 
-            // Send paste to the last window that was foreground, since this app is now fg.
-
+            // Send paste to the last window that was foreground, since WinClip is now fg.
+            // Win11 does not allow direct setting of ForegroundWindow. This is now the way:
             // https://stackoverflow.com/questions/62966320/setforegroundwindow-not-setting-focus
-
-            // https://learn.microsoft.com/en-us/dotnet/api/microsoft.visualbasic.interaction.appactivate?view=net-10.0
-            // AppActivate(int ProcessId);
-            // AppActivate("Untitled - Notepad")
-            // Namespace: Microsoft.VisualBasic
-
-            WM.ForegroundWindow = _pasteWin;
-            var fg = GetWindowInfo(WM.ForegroundWindow);
-            _logger.Debug($"Paste to {WM.ForegroundWindow} [{fg.ProcessName}]");
-
-
+            var fg = GetWindowInfo(_pasteWin);
+            _logger.Debug($"Paste to win:{_pasteWin:X8} proc:{fg.ProcessId:X8}[{fg.ProcessName}]");
+            Microsoft.VisualBasic.Interaction.AppActivate(fg.ProcessId);
             SendKeys.Send("^{V}");
 
             Invalidate();
@@ -391,15 +367,6 @@ namespace WinClip
                 _pasteWin = hwnd;
                 _dev.Tell($"Set _pasteWin: {_pasteWin} [{GetWindowInfo(_pasteWin).ProcessName}]");
             }
-
-            //var winfo = GetWindowInfo(hwnd);
-            //if (hwnd != _currentWin && winfo.IsVisible && winfo.ProcessName != "explorer")
-            //{
-            //    _previousWin = _currentWin;
-            //    _currentWin = hwnd;
-            //    _dev.Tell($"Current: {GetWindowInfo(_currentWin).ProcessName}");
-            //    _dev.Tell($"Previous: {GetWindowInfo(_previousWin).ProcessName}");
-            //}
         }
 
         #region Drawing
@@ -504,60 +471,9 @@ namespace WinClip
             Process? process = hwnd == 0 ? Process.GetCurrentProcess() : Process.GetProcessById(appInfo.Pid);
             var title = appInfo.Title;
             var procName = process.ProcessName;
-            WindowInfo winfo = new(hwnd, procName, title, appInfo.IsVisible, appInfo.Parent);
+            WindowInfo winfo = new(hwnd, appInfo.Pid, procName, title, appInfo.IsVisible);
             return winfo;
         }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        void AddHotKey(HotKey hk)
-        {
-            // Listen for hot keys.
-            var key = hk.Key[0] & ~0x20; // make it UC   // high-order word
-            var mod = (hk.Ctrl ? W32.MOD_CTRL : 0) |  // low-order word
-                (hk.Alt ? W32.MOD_ALT : 0) |
-                (hk.Shift ? W32.MOD_SHIFT : 0) |
-                (hk.Win ? W32.MOD_WIN : 0);
-            W32.RegisterHotKey(Handle, key, mod);
-        }
-
-        /// <summary>
-        /// Low level keyboard hook function. Useful?? put in NDev/or? if not.
-        /// </summary>
-        /// <param name="code">Virtual-key code in the range 1 to 254. If less than zero, pass the message to the CallNextHookEx function without further processing.</param>
-        /// <param name="wParam">One of the following messages: WM_KEYDOWN WM_KEYUP WM_SYSKEYDOWN WM_SYSKEYUP.</param>
-        /// <param name="lParam">Pointer to a KBDLLHOOKSTRUCT structure.</param>
-        /// <returns>Return value from call to next in chain or >0 for handled locally</returns>
-        int KeyboardHookProc(int code, int wParam, ref W32.KBDLLHOOKSTRUCT lParam)
-        {
-            bool handled = false;
-
-            if (code >= 0)
-            {
-                Keys key = (Keys)lParam.vkCode;
-
-                bool keyDown = wParam == W32.WM_KEYDOWN || wParam == W32.WM_SYSKEYDOWN;
-                bool keyUp = wParam == W32.WM_KEYUP || wParam == W32.WM_SYSKEYUP;
-                bool letterPressed = key == Keys.R && keyDown;
-                bool winKey = (key == Keys.LWin || key == Keys.RWin) && keyDown;
-                bool ctrlKey = (key & Keys.Control) > 0 && keyDown;
-                bool altKey = (key & Keys.Alt) > 0 && keyDown;
-            }
-
-            if (handled)
-            {
-                // If the hook procedure processed the message, it may return a nonzero value to prevent
-                // the system from passing the message to the rest of the hook chain or the target window procedure.
-                return 1;
-            }
-            else
-            {
-                // Pass along chain.
-                return W32.CallNextHookEx(_hHook, code, wParam, ref lParam);
-            }
-        }
-
         #endregion
 
         #region Native
@@ -589,19 +505,9 @@ namespace WinClip
     }
 
     #region Types
-    [Serializable]
-    public sealed class HotKey
+    record struct WindowInfo(IntPtr Hwnd, int ProcessId, string ProcessName, string Title, bool IsVisible)
     {
-        public string Key { get; set; } = "?";
-        public bool Ctrl { get; set; } = false;
-        public bool Alt { get; set; } = false;
-        public bool Shift { get; set; } = false;
-        public bool Win { get; set; } = false;
-    }
-
-    record struct WindowInfo(IntPtr Hwnd, string ProcessName, string Title, bool IsVisible, IntPtr Parent)
-    {
-        public override readonly string ToString() { return $"hwnd:0X{Hwnd:X8} proc:{ProcessName} title:{Title} vis:{IsVisible} parent:0X{Parent:X8}"; }
+        public override readonly string ToString() { return $"hwnd:0X{Hwnd:X8} proc:{ProcessId:X8}[{ProcessName}] title:[{Title}] vis:{IsVisible}"; }
     };
     #endregion
 }

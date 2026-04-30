@@ -16,9 +16,6 @@ namespace WinClip
         /// <summary>Current global user settings.</summary>
         public static UserSettings Settings { get; set; } = new UserSettings();
 
-        [TypeConverter(typeof(ExpandableObjectConverter))]
-        public HotKey HotKey { get; set; } = new();
-
         [DisplayName("Max Clips")]
         [Description("Max size of clip cache.")]
         public int MaxClips { get; set; } = 20;
@@ -42,7 +39,7 @@ namespace WinClip
         [JsonConverter(typeof(JsonStringEnumConverter))]
         public LogLevel NotifLogLevel { get; set; } = LogLevel.Debug;
 
-        // TODO configurable or calculated?
+        // Make configurable or calculated?
         [Browsable(false)]
         public int ShortTextLen { get; set; } = 60;
     }

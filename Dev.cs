@@ -29,20 +29,7 @@ namespace WinClip
             ];
             btnClear.Click += (_, __) => tvInfo.Clear();
 
-            lblLetter.Text = UserSettings.Settings.HotKey.Key;
-
-            ///// Debug stuff
-            //if (_debug)
-            //{
-            //    var sdir = MiscUtils.GetSourcePath();
-            //    var fn = Path.Combine(sdir, "Test", "ross.txt");
-            //    AddClip(new PlainTextClip(new DataObject(File.ReadAllText(fn))));
-            //    fn = Path.Combine(sdir, "Test", "ex.rtf");
-            //    AddClip(new RtfTextClip(new DataObject(RtfTextClip.TYPE_NAME, (File.ReadAllText(fn)))));
-            //    fn = Path.Combine(sdir, "Test", "ex.png");
-            //    AddClip(new ImageClip(new DataObject(Bitmap.FromFile(fn))));
-            //}
-
+            lblLetter.Text = "?";
 
             //// Diagnostics.
             //lblCtrl.BackColor = ctrlKey ? Color.LimeGreen : SystemColors.Control;
