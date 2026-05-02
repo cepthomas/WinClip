@@ -14,7 +14,6 @@ namespace WinClip
         /// </summary>
         private void InitializeComponent()
         {
-            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             btnDebug = new System.Windows.Forms.Button();
             btnSettings = new System.Windows.Forms.Button();
             SuspendLayout();
@@ -42,11 +41,10 @@ namespace WinClip
             // MainForm
             // 
             AutoScroll = true;
-            ClientSize = new System.Drawing.Size(434, 598);
+            ClientSize = new System.Drawing.Size(559, 598);
             Controls.Add(btnSettings);
             Controls.Add(btnDebug);
             FormBorderStyle = System.Windows.Forms.FormBorderStyle.SizableToolWindow;
-            Icon = (System.Drawing.Icon)resources.GetObject("$this.Icon");
             Name = "MainForm";
             StartPosition = System.Windows.Forms.FormStartPosition.Manual;
             Text = "Hoo Haa";

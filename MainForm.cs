@@ -39,7 +39,7 @@ namespace WinClip
         readonly Logger _logger = LogManager.CreateLogger("APP");
 
         /// <summary>All clips in the collection.</summary>
-        readonly LinkedList<ClipDisplay> _clips = new();
+        readonly List<ClipDisplay> _clips = new();
 
         /// <summary>Where to paste.</summary>
         IntPtr _pasteWin = IntPtr.Zero;
@@ -343,7 +343,9 @@ namespace WinClip
 
             clipd.MouseClick += (sender, e) => { ClipClick(sender as ClipDisplay, true, e.Button); };
             clipd.MouseDoubleClick += (sender, e) => { ClipClick(sender as ClipDisplay, false, e.Button); };
-            _clips.AddFirst(clipd);
+            
+            _clips.Add(clipd);
+            
             Controls.Add(clipd);
 
             // Limit - remove tail(s).
@@ -376,14 +378,22 @@ namespace WinClip
         /// <param name="e">The particular PaintEventArgs.</param>
         protected override void OnPaint(PaintEventArgs e)
         {
-            // Assign ordered locations.
-            int xloc = 5;
-            int yloc = btnDebug.Bottom + 5;
-            int yinc = UserSettings.Settings.ClipSize.Height + 5;
+            int numGridColumns = 4;
+            int pad = 5;
 
-            foreach (var cl in _clips)
+            // Assign ordered locations.
+            int xinc = UserSettings.Settings.ClipSize.Width + pad;
+            int yinc = UserSettings.Settings.ClipSize.Height + pad;
+
+            for (int i = 0; i < _clips.Count; i++)
             {
-                cl.Location = new Point(xloc, yloc);
+                int row = i / numGridColumns;
+                int col = i % numGridColumns;
+
+                int xloc = xinc * col + pad;
+                int yloc = yinc * row + btnDebug.Bottom + pad;
+
+                _clips[i].Location = new Point(xloc, yloc);
                 yloc += yinc;
             }
 
@@ -437,7 +447,7 @@ namespace WinClip
         void Debug_Click(object sender, EventArgs e)
         {
             _dev.Show();
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < 20; i++)
             {
                 var sdir = MiscUtils.GetSourcePath();
                 var fn = Path.Combine(sdir, "Test", "ross.txt");
